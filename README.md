@@ -109,11 +109,12 @@ The URL is still:
 ```txt
 windup/
 ├── docs/
-│   ├── PRD.md
-│   ├── ARCHITECTURE.md
-│   ├── DATABASE_SCHEMA.md
-│   ├── API_ROUTES.md
-│   └── MIMI_AI_COMPANION.md
+│   ├── 1_PRD.md
+│   ├── 2_ARCHITECTURE.md
+│   ├── 3_DATABASE_SCHEMA.md
+│   ├── 4_API_ROUTES.md
+│   ├── 5_MIMI_AI_COMPANION.md
+│   └── ROADMAP.md
 │
 ├── app/
 │   ├── (auth)/
