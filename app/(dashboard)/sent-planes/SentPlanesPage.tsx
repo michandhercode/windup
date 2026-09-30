@@ -210,7 +210,8 @@ export default function SentPlanesPage() {
 
       {selectedPlane && selectedCfg && SelectedMoodIcon && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-md max-h-[85vh] flex flex-col p-6 rounded-3xl bg-amber-50/95 dark:bg-slate-900 border border-amber-200 dark:border-slate-800 shadow-2xl space-y-4">
+          {/* Pinalawak ang max-width to max-w-4xl at pinalaki ang padding */}
+          <div className="relative w-full max-w-4xl max-h-[85vh] flex flex-col p-8 sm:p-10 rounded-3xl bg-amber-50/95 dark:bg-slate-900 border border-amber-200 dark:border-slate-800 shadow-2xl space-y-5">
             
             <div className="flex items-center justify-between text-xs text-slate-400 shrink-0">
               <span className="font-mono flex items-center gap-1">
@@ -222,31 +223,33 @@ export default function SentPlanesPage() {
               </span>
             </div>
 
-            <h2 className="text-xl font-serif font-bold text-slate-800 dark:text-slate-100 shrink-0">{selectedPlane.title}</h2>
+            <h2 className="text-xl sm:text-2xl font-serif font-bold text-slate-800 dark:text-slate-100 shrink-0">
+              {selectedPlane.title}
+            </h2>
             
-            <div className="overflow-y-auto max-h-[45vh] pr-1 border-t border-b border-amber-200/50 py-4 font-serif custom-scrollbar">
-              <p className="text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-wrap">
+            <div className="overflow-y-auto max-h-[50vh] pr-2 border-t border-b border-amber-200/50 py-5 font-serif custom-scrollbar">
+              <p className="text-sm sm:text-base leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
                 "{selectedPlane.content}"
               </p>
             </div>
 
-            <div className="flex items-center justify-between pt-1 shrink-0">
-              <div className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 text-xs font-bold">
-                <Heart className="w-3.5 h-3.5 fill-current" />
+            <div className="flex items-center justify-between pt-2 shrink-0">
+              <div className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 text-xs font-bold">
+                <Heart className="w-4 h-4 fill-current" />
                 <span>{selectedPlane.resonated} Resonated</span>
               </div>
 
               <div className="flex items-center gap-2">
                 <button
                   onClick={(e) => handleKeepInJar(selectedPlane.id, e)}
-                  className="flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 text-xs font-semibold hover:bg-sky-200 transition-colors"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 text-xs font-semibold hover:bg-sky-200 transition-colors"
                 >
-                  <BookmarkCheck className="w-3.5 h-3.5" />
+                  <BookmarkCheck className="w-4 h-4" />
                   Keep in Jar
                 </button>
                 <button
                   onClick={() => setSelectedPlane(null)}
-                  className="px-4 py-1.5 rounded-xl bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 text-xs font-semibold"
+                  className="px-6 py-2 rounded-xl bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 text-xs font-semibold shadow-sm hover:opacity-90 transition-opacity"
                 >
                   Close
                 </button>

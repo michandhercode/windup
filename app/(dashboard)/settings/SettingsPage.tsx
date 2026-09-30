@@ -1,13 +1,14 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Settings, User, Database, Download, CheckCircle, AlertCircle, Info, Mail, FileText, X, Send } from 'lucide-react';
+import { Settings, User, Database, Download, CheckCircle, AlertCircle, Info, Mail, FileText, X, Send, Bell } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 
 export default function SettingsPage() {
   const { letters } = useLetters();
   const [displayName, setDisplayName] = useState('Anonymous');
   const [email, setEmail] = useState('scribe@windup.app');
+  const [emailNotifications, setEmailNotifications] = useState(true);
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [exportSuccess, setExportSuccess] = useState(false);
@@ -19,13 +20,18 @@ export default function SettingsPage() {
   const [supportMessage, setSupportMessage] = useState('');
   const [supportSentSuccess, setSupportSentSuccess] = useState(false);
 
-  // Load saved display name and email from localStorage on mount
+  // Load saved preferences from localStorage on mount
   useEffect(() => {
     const savedName = localStorage.getItem('windup_display_name');
     if (savedName) setDisplayName(savedName);
 
     const savedEmail = localStorage.getItem('windup_user_email');
     if (savedEmail) setEmail(savedEmail);
+
+    const savedNotifications = localStorage.getItem('windup_email_notifications');
+    if (savedNotifications !== null) {
+      setEmailNotifications(savedNotifications === 'true');
+    }
   }, []);
 
   const handleSaveProfile = (e: React.FormEvent) => {
@@ -34,7 +40,7 @@ export default function SettingsPage() {
 
     const trimmedName = displayName.trim();
 
-    // Validation: Bawal ang may space o kaya ay blangko
+    // Validate single display name without spaces
     if (trimmedName.includes(' ') || trimmedName === '') {
       setErrorMsg('Display name must be a single name only (no spaces).');
       return;
@@ -42,14 +48,15 @@ export default function SettingsPage() {
 
     const trimmedEmail = email.trim();
 
-    // I-save sa parehong localStorage keys na ginagamit ng Signup at Navbar
+    // Save profile settings to localStorage
     localStorage.setItem('windup_display_name', trimmedName);
     localStorage.setItem('windup_user_email', trimmedEmail);
+    localStorage.setItem('windup_email_notifications', emailNotifications.toString());
     
     setDisplayName(trimmedName);
     setEmail(trimmedEmail);
 
-    // I-trigger ang custom event para mag-update agad ang Navbar nang hindi na kailangan i-refresh
+    // Notify other components of profile updates
     window.dispatchEvent(new Event('windup_profile_updated'));
 
     setSavedSuccess(true);
@@ -58,7 +65,7 @@ export default function SettingsPage() {
 
   const handleExportData = () => {
     const exportData = {
-      profile: { displayName, email },
+      profile: { displayName, email, emailNotifications },
       letters: letters,
       exportedAt: new Date().toISOString(),
     };
@@ -79,7 +86,6 @@ export default function SettingsPage() {
     e.preventDefault();
     if (!supportMessage.trim()) return;
 
-    // Dito mo pwedeng i-integrate ang API kung kinakailangan sa hinaharap
     setSupportSentSuccess(true);
     setTimeout(() => {
       setSupportSentSuccess(false);
@@ -102,7 +108,7 @@ export default function SettingsPage() {
             Settings & Preferences
           </h1>
           <p className="text-xs text-slate-500 dark:text-slate-400">
-            Manage your personal profile, data exports, and view application details.
+            Manage your personal profile, email notifications, and data exports.
           </p>
         </div>
       </div>
@@ -112,12 +118,14 @@ export default function SettingsPage() {
         <div className="flex items-center gap-2 pb-3 border-b border-slate-100 dark:border-slate-800">
           <User className="w-4 h-4 text-sky-500" />
           <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200">
-            Profile Details
+            Profile & Communication
           </h2>
         </div>
 
-        <form onSubmit={handleSaveProfile} className="space-y-4">
+        <form onSubmit={handleSaveProfile} className="space-y-5">
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+            
+            {/* Display Name Input */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center justify-between">
                 <span>Display Name</span>
@@ -127,7 +135,6 @@ export default function SettingsPage() {
                 type="text"
                 value={displayName}
                 onChange={(e) => {
-                  // Instant alis ng spaces habang nagta-type para masigurong single name
                   setDisplayName(e.target.value.replace(/\s+/g, ''));
                   if (errorMsg) setErrorMsg('');
                 }}
@@ -141,6 +148,7 @@ export default function SettingsPage() {
               )}
             </div>
 
+            {/* Email Input with Purpose Note */}
             <div className="space-y-1.5">
               <label className="text-xs font-semibold text-slate-600 dark:text-slate-300">
                 Email Address
@@ -149,12 +157,44 @@ export default function SettingsPage() {
                 type="email"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                placeholder="scribe@windup.app"
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-medium focus:ring-2 focus:ring-sky-400 focus:outline-none transition-all"
               />
+              <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-snug">
+                Used for support responses, account security, and paper plane notifications.
+              </p>
             </div>
           </div>
 
-          <div className="flex items-center justify-end gap-3 pt-2">
+          {/* Email Notification Toggle */}
+          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
+            <div className="space-y-0.5">
+              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                <Bell className="w-3.5 h-3.5 text-sky-500" />
+                Email Notifications
+              </label>
+              <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                Receive email alerts for support replies, paper plane updates, and community news.
+              </p>
+            </div>
+
+            <button
+              type="button"
+              onClick={() => setEmailNotifications(!emailNotifications)}
+              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none ${
+                emailNotifications ? 'bg-sky-500' : 'bg-slate-200 dark:bg-slate-700'
+              }`}
+            >
+              <span
+                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
+                  emailNotifications ? 'translate-x-5' : 'translate-x-0'
+                }`}
+              />
+            </button>
+          </div>
+
+          {/* Save Button & Status */}
+          <div className="flex items-center justify-end gap-3 pt-2 border-t border-slate-100 dark:border-slate-800">
             {savedSuccess && (
               <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1 animate-in fade-in">
                 <CheckCircle className="w-3.5 h-3.5" /> Changes saved!
@@ -258,7 +298,7 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={() => setActiveModal('support')}
-              className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-bold transition-all shadow-sm cursor-pointer"
+              className="w-full flex items-center justify-center gap-1.5 px-4 py-2.5 rounded-xl border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-800 dark:text-slate-100 text-xs font-bold transition-all shadow-xs cursor-pointer"
             >
               <Mail className="w-3.5 h-3.5 text-sky-500" />
               Contact Support
