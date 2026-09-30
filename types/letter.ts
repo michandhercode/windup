@@ -2,7 +2,7 @@ export type LetterStatus = 'draft' | 'kept' | 'sealed' | 'opened' | 'released' |
 
 export type Visibility = 'private' | 'anonymous_public' | 'sealed';
 
-export type Mood = 'peaceful' | 'reflective' | 'nostalgic' | 'heavy' | 'hopeful' | 'quiet';
+export type Mood = 'neutral' | 'peaceful' | 'reflective' | 'nostalgic' | 'heavy' | 'hopeful';
 
 export interface Letter {
   id: string;
