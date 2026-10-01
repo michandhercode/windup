@@ -108,9 +108,11 @@ export default function Navbar() {
         
         {/* Brand logo */}
         <Link href={isGuest ? '/sky' : '/jar'} className="flex items-center gap-2 font-bold text-lg text-slate-900 dark:text-slate-100 group shrink-0">
-          <div className="w-8 h-8 rounded-xl bg-rose-400 text-white flex items-center justify-center font-extrabold shadow-xs group-hover:scale-105 transition-transform">
-            W
-          </div>
+          <img
+            src="/logo.png"
+            alt="Windup logo"
+            className="w-8 h-8 rounded-xl object-contain shadow-xs group-hover:scale-105 transition-transform"
+          />
           <span className="tracking-tight text-slate-800 dark:text-slate-100">Windup</span>
         </Link>
 

@@ -1,6 +1,6 @@
 'use client';
 
-import { Bot, Lightbulb } from 'lucide-react';
+import { Lightbulb } from 'lucide-react';
 
 interface MimiPanelProps {
   prompt?: string;
@@ -16,7 +16,7 @@ export default function MimiPanel({
     >
       <div className="flex items-center justify-between border-b border-stone-200 dark:border-zinc-800 pb-3" style={{ borderColor: 'var(--card-border, rgba(229, 231, 235, 0.8))' }}>
         <div className="flex items-center gap-2">
-          <Bot className="w-4 h-4 text-sky-600 dark:text-sky-400" />
+          <img src="/mimi_agent.png" alt="Mimi" className="w-6 h-6 object-contain" />
           <h2 className="text-xs font-bold tracking-wider uppercase text-stone-800 dark:text-stone-100">ASK MIMI</h2>
         </div>
         <span className="text-[10px] bg-sky-500/20 text-sky-700 dark:text-sky-300 px-2.5 py-0.5 rounded-full font-bold">

@@ -12,7 +12,6 @@ import {
   CloudRain, 
   HeartHandshake, 
   Clock, 
-  Bot, 
   BookOpen, 
   Lightbulb,
   Archive,
@@ -459,7 +458,7 @@ function FoldContent() {
           <div className="rounded-3xl border border-sky-100 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/90 shadow-md p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-sky-100 dark:border-zinc-800 pb-3">
               <div className="flex items-center gap-2">
-                <Bot className="w-4 h-4 text-sky-500 dark:text-sky-400" />
+                <img src="/mimi_agent.png" alt="Mimi" className="w-6 h-6 object-contain" />
                 <h2 className="text-xs font-bold tracking-wider uppercase text-sky-950 dark:text-sky-100">ASK MIMI</h2>
               </div>
               <span className="text-[10px] bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 px-2.5 py-0.5 rounded-full font-bold">

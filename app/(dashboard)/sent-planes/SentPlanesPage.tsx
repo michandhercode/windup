@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Send, Calendar, Heart, Trash2, Inbox, Cloud, Feather, BookOpen, Clock, CloudRain, HeartHandshake, BookmarkCheck, AlertCircle } from 'lucide-react';
+import { Calendar, Heart, Trash2, Inbox, Cloud, Feather, BookOpen, Clock, CloudRain, HeartHandshake, BookmarkCheck, AlertCircle } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 
 const getMoodConfig = (moodString: string) => {
@@ -97,7 +97,7 @@ export default function SentPlanesPage() {
       <div className="p-6 rounded-3xl border border-sky-200/70 dark:border-sky-800/50 bg-gradient-to-r from-sky-100/90 via-sky-50/70 to-indigo-50/80 dark:from-slate-900 dark:via-sky-950/40 dark:to-indigo-950/50 text-slate-800 dark:text-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1.5">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-400/30 text-sky-800 dark:text-sky-200 text-[11px] font-bold tracking-wide uppercase">
-            <Send className="w-3.5 h-3.5" />
+            <img src="/my_plane.png" alt="" className="w-4 h-4 object-contain" />
             Your Public Echoes
           </div>
           <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
@@ -112,7 +112,7 @@ export default function SentPlanesPage() {
         <div className="flex items-center gap-3">
           <div className="px-4 py-2.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-sky-200/60 dark:border-slate-800 backdrop-blur-xs flex items-center gap-3 shadow-xs">
             <div className="p-2 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
-              <Send className="w-4 h-4" />
+              <img src="/my_plane.png" alt="" className="w-5 h-5 object-contain" />
             </div>
             <div>
               <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Sent</div>

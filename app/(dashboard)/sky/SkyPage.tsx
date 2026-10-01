@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Cloud, Sparkles, Heart, Feather, BookOpen, Clock, CloudRain, HeartHandshake, CheckCircle2, FoldHorizontal, UserCheck, Send } from 'lucide-react';
+import { Cloud, Sparkles, Heart, Feather, BookOpen, Clock, CloudRain, HeartHandshake, CheckCircle2, FoldHorizontal, UserCheck } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 
 const getMoodConfig = (moodString: string) => {
@@ -195,8 +195,12 @@ export default function SkyPage() {
                       : 'bg-white/90 dark:bg-slate-900/90 border-white/80 dark:border-slate-800 text-slate-800 dark:text-slate-100'
                   }`}
                 >
-                  <div className={`p-1.5 rounded-xl ${plane.isUserOwner ? 'bg-indigo-500 text-white' : 'bg-sky-500 text-white'} shadow-sm`}>
-                    <Send className="w-3.5 h-3.5 transform -rotate-45" />
+                  <div className="p-0.5 shrink-0">
+                    <img
+                      src={plane.isUserOwner ? '/my_plane.png' : '/users_plane.png'}
+                      alt={plane.isUserOwner ? 'Your paper plane' : 'Paper plane'}
+                      className="w-7 h-7 object-contain drop-shadow-sm"
+                    />
                   </div>
                   <div className="flex flex-col max-w-[140px] sm:max-w-[180px]">
                     <span className="text-xs font-semibold truncate font-serif">{plane.title}</span>
