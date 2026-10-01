@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Cloud, Sparkles, Heart, Feather, BookOpen, Clock, CloudRain, HeartHandshake, CheckCircle2, FoldHorizontal, UserCheck } from 'lucide-react';
+import { Cloud, Sparkles, Heart, Feather, BookOpen, Clock, CloudRain, HeartHandshake, FoldHorizontal, UserCheck } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 
 const getMoodConfig = (moodString: string) => {
@@ -31,6 +31,30 @@ const ALL_MOCK_POOL = [
   { id: 'm7', title: 'Stargazing notes...', content: 'The universe is vast, and your presence in it matters more than you realize.', mood: 'reflective', likes: 27, createdAt: new Date().toISOString(), isUserOwner: false },
   { id: 'm8', title: 'Rainy afternoon...', content: 'Listening to the heavy rain while wrapped in a thick blanket. Pure comfort.', mood: 'heavy', likes: 38, createdAt: new Date().toISOString(), isUserOwner: false },
 ];
+
+const PLANES_PER_CATCH = 7;
+const GRID_COLS = 4;
+const GRID_ROWS = 2;
+
+const generateScatterLayout = (count: number) => {
+  const cells: { col: number; row: number }[] = [];
+  for (let row = 0; row < GRID_ROWS; row++) {
+    for (let col = 0; col < GRID_COLS; col++) {
+      cells.push({ col, row });
+    }
+  }
+  const shuffledCells = cells.sort(() => 0.5 - Math.random());
+
+  return Array.from({ length: count }, (_, i) => {
+    const cell = shuffledCells[i % shuffledCells.length];
+    return {
+      left: `${2 + cell.col * 22 + Math.random() * 6}%`,
+      top: `${cell.row * 42 + Math.random() * 10}%`,
+      duration: `${(5 + Math.random() * 3.5).toFixed(1)}s`,
+      delay: `${(Math.random() * 2).toFixed(1)}s`,
+    };
+  });
+};
 
 export default function SkyPage() {
   const { letters } = useLetters();
@@ -76,17 +100,19 @@ export default function SkyPage() {
     }
   }).length;
 
-  const getRandomFive = () => {
+  const getRandomBatch = () => {
     const shuffled = [...masterPool].sort(() => 0.5 - Math.random());
-    return shuffled.slice(0, 5);
+    const picked = shuffled.slice(0, PLANES_PER_CATCH);
+    const layout = generateScatterLayout(picked.length);
+    return picked.map((plane, i) => ({ ...plane, ...layout[i] }));
   };
 
   useEffect(() => {
-    setCurrentBatch(getRandomFive());
+    setCurrentBatch(getRandomBatch());
   }, [letters]);
 
   const handleCatchMore = () => {
-    setCurrentBatch(getRandomFive());
+    setCurrentBatch(getRandomBatch());
   };
 
   const handleOpenPlane = (plane: any) => {
@@ -109,17 +135,8 @@ export default function SkyPage() {
     }, 200);
   };
 
-  const positions = [
-    { top: '20%', left: '15%', duration: '6s', delay: '0s' },
-    { top: '35%', left: '65%', duration: '7s', delay: '1s' },
-    { top: '55%', left: '30%', duration: '5.5s', delay: '0.5s' },
-    { top: '70%', left: '70%', duration: '6.5s', delay: '2s' },
-    { top: '25%', left: '45%', duration: '8s', delay: '1.5s' },
-  ];
-
-  const activePlanes = currentBatch.map((plane, index) => ({
+  const activePlanes = currentBatch.map((plane) => ({
     ...plane,
-    ...positions[index % positions.length],
     isRead: readPlaneIds.includes(plane.id),
   }));
 
@@ -137,7 +154,17 @@ export default function SkyPage() {
           <h1 className="text-sm font-bold text-slate-800 dark:text-slate-100">
             The Sky <span className="font-normal text-xs text-slate-500 dark:text-slate-400">(Public Ocean)</span>
           </h1>
-          <p className="text-[11px] text-slate-500 dark:text-slate-400">Catching 5 random paper planes drifting around.</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">Catching {PLANES_PER_CATCH} random paper planes drifting around.</p>
+          <div className="mt-1 flex items-center gap-3 text-[10px] text-slate-500 dark:text-slate-400">
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-amber-400 shadow-[0_0_6px_2px_rgba(251,191,36,0.6)]" />
+              Unread
+            </span>
+            <span className="inline-flex items-center gap-1">
+              <span className="h-2 w-2 rounded-full bg-slate-400/70" />
+              Read
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-3 text-xs">
@@ -158,12 +185,17 @@ export default function SkyPage() {
 
       <div className="relative w-full flex-1">
         {activePlanes.map((plane) => {
+          const planeSrc = plane.isUserOwner ? '/my_plane.png' : '/users_plane.png';
+          const planeAlt = plane.isUserOwner ? 'Your paper plane' : 'Paper plane';
+          const statusLabel = plane.isRead ? 'Read' : 'Unread';
+          const imageStateClass = plane.isRead
+            ? 'opacity-60 grayscale-[35%] drop-shadow-md'
+            : 'opacity-100 drop-shadow-[0_0_14px_rgba(251,191,36,0.75)]';
+
           return (
             <div
               key={plane.id}
-              className={`absolute animate-float transition-all duration-300 ${
-                plane.isRead ? 'opacity-70 grayscale-[20%]' : 'opacity-100'
-              }`}
+              className="absolute animate-float"
               style={{
                 top: plane.top,
                 left: plane.left,
@@ -171,44 +203,30 @@ export default function SkyPage() {
                 animationDelay: plane.delay,
               }}
             >
-              <div className="relative group">
-                {/* Badges para sa User Owner o Read status */}
-                {plane.isUserOwner ? (
-                  <span className="absolute -top-2.5 -right-2.5 z-20 flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-bold shadow-sm border border-indigo-300">
-                    <UserCheck className="w-3 h-3" />
-                    You
-                  </span>
-                ) : plane.isRead ? (
-                  <span className="absolute -top-2 -right-2 z-20 flex h-4 w-4 items-center justify-center rounded-full bg-emerald-500 text-white shadow-xs">
-                    <CheckCircle2 className="w-3 h-3" />
-                  </span>
-                ) : null}
+              <button
+                type="button"
+                onClick={() => handleOpenPlane(plane)}
+                aria-label={statusLabel + ' paper plane: ' + plane.title}
+                title={statusLabel}
+                className="relative block cursor-pointer bg-transparent border-0 p-0 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-sky-400 rounded-2xl transition-transform duration-300 hover:scale-110 active:scale-95"
+              >
+                <img
+                  src={planeSrc}
+                  alt={planeAlt}
+                  draggable={false}
+                  className={'w-24 h-24 sm:w-32 sm:h-32 lg:w-40 lg:h-40 object-contain select-none transition-all duration-300 ' + imageStateClass}
+                />
 
-                {/* Pinagandang Custom Paper Airplane Card (inalis ang search icon, ginawang parang tunay na eroplanong papel) */}
-                <div 
-                  onClick={() => handleOpenPlane(plane)}
-                  className={`flex items-center gap-2.5 px-4 py-2.5 rounded-2xl cursor-pointer backdrop-blur-md transition-all duration-300 hover:scale-105 active:scale-95 shadow-md border ${
-                    plane.isUserOwner
-                      ? 'bg-indigo-50/90 dark:bg-indigo-950/80 border-indigo-300 dark:border-indigo-700 text-indigo-900 dark:text-indigo-200 ring-2 ring-indigo-400/50'
-                      : plane.isRead
-                      ? 'bg-slate-100/80 dark:bg-slate-800/80 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
-                      : 'bg-white/90 dark:bg-slate-900/90 border-white/80 dark:border-slate-800 text-slate-800 dark:text-slate-100'
-                  }`}
-                >
-                  <div className="p-0.5 shrink-0">
-                    <img
-                      src={plane.isUserOwner ? '/my_plane.png' : '/users_plane.png'}
-                      alt={plane.isUserOwner ? 'Your paper plane' : 'Paper plane'}
-                      className="w-7 h-7 object-contain drop-shadow-sm"
-                    />
-                  </div>
-                  <div className="flex flex-col max-w-[140px] sm:max-w-[180px]">
-                    <span className="text-xs font-semibold truncate font-serif">{plane.title}</span>
-                    <span className="text-[10px] opacity-70 capitalize">{plane.mood}</span>
-                  </div>
-                </div>
-
-              </div>
+                {/* Read / unread marker badge */}
+                {plane.isRead ? (
+                  <span className="absolute top-[16%] right-[16%] h-3 w-3 rounded-full bg-slate-400/70 dark:bg-slate-500/70 border border-white/70 dark:border-slate-800" />
+                ) : (
+                  <span className="absolute top-[16%] right-[16%] flex h-3.5 w-3.5">
+                    <span className="absolute inline-flex h-full w-full animate-ping rounded-full bg-amber-400 opacity-70" />
+                    <span className="relative inline-flex h-3.5 w-3.5 rounded-full bg-amber-400 border-2 border-white dark:border-slate-900 shadow-[0_0_8px_2px_rgba(251,191,36,0.7)]" />
+                  </span>
+                )}
+              </button>
             </div>
           );
         })}

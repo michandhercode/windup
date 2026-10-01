@@ -457,13 +457,20 @@ function FoldContent() {
 
           <div className="rounded-3xl border border-sky-100 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/90 shadow-md p-5 space-y-4">
             <div className="flex items-center justify-between border-b border-sky-100 dark:border-zinc-800 pb-3">
-              <div className="flex items-center gap-2">
-                <img src="/mimi_agent.png" alt="Mimi" className="w-6 h-6 object-contain" />
-                <h2 className="text-xs font-bold tracking-wider uppercase text-sky-950 dark:text-sky-100">ASK MIMI</h2>
-              </div>
+              <h2 className="text-xs font-bold tracking-wider uppercase text-sky-950 dark:text-sky-100">ASK MIMI</h2>
               <span className="text-[10px] bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 px-2.5 py-0.5 rounded-full font-bold">
                 Companion
               </span>
+            </div>
+
+            {/* Featured Mimi agent display */}
+            <div className="flex justify-center">
+              <img
+                src="/mimi_agent.png"
+                alt="Mimi, your companion agent"
+                className="w-40 h-40 sm:w-48 sm:h-48 object-contain drop-shadow-lg select-none"
+                draggable={false}
+              />
             </div>
             
             <div className="p-4 rounded-2xl bg-sky-50/60 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900/30 text-xs space-y-2">

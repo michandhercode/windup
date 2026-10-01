@@ -45,9 +45,9 @@
 .dark {
   color-scheme: dark;
 
-  --bg-main: #181b27;        /* soft charcoal-slate */
-  --text-main: #ebe8f4;      /* gentle lavender-white */
-  --text-muted: #a9a8c0;     /* muted lavender-grey, ~7:1 on bg */
+  --bg-main: #181b27;
+  --text-main: #ebe8f4;
+  --text-muted: #a9a8c0;
   --card-bg: #212536;
   --card-border: #323850;
 
@@ -56,7 +56,7 @@
   --banner-text: #f6e7c1;
   --banner-sub: #e8d29a;
 
-  --primary: #f4a3b7;        /* gentle rose */
+  --primary: #f4a3b7;
 }
 
 html, body {
@@ -72,6 +72,19 @@ body {
   background-image: radial-gradient(var(--card-border) 1px, transparent 1px);
   background-size: 24px 24px;
   font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+}
+
+/* Universal Dashboard Background (Light Mode) */
+.dashboard-bg {
+  background-image: url('/daybg.png') !important;
+  background-size: cover !important;
+  background-position: center !important;
+  background-repeat: no-repeat !important;
+}
+
+/* Universal Dashboard Background (Dark Mode) */
+.dark .dashboard-bg {
+  background-image: url('/nightbg.png') !important;
 }
 
 /* Readable placeholders and selection in both themes */

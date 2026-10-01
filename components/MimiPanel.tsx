@@ -15,13 +15,20 @@ export default function MimiPanel({
       style={{ backgroundColor: 'var(--card-bg, #ffffff)', borderColor: 'var(--card-border, rgba(229, 231, 235, 0.8))' }}
     >
       <div className="flex items-center justify-between border-b border-stone-200 dark:border-zinc-800 pb-3" style={{ borderColor: 'var(--card-border, rgba(229, 231, 235, 0.8))' }}>
-        <div className="flex items-center gap-2">
-          <img src="/mimi_agent.png" alt="Mimi" className="w-6 h-6 object-contain" />
-          <h2 className="text-xs font-bold tracking-wider uppercase text-stone-800 dark:text-stone-100">ASK MIMI</h2>
-        </div>
+        <h2 className="text-xs font-bold tracking-wider uppercase text-stone-800 dark:text-stone-100">ASK MIMI</h2>
         <span className="text-[10px] bg-sky-500/20 text-sky-700 dark:text-sky-300 px-2.5 py-0.5 rounded-full font-bold">
           Companion
         </span>
+      </div>
+
+      {/* Featured Mimi agent display */}
+      <div className="flex justify-center">
+        <img
+          src="/mimi_agent.png"
+          alt="Mimi, your companion agent"
+          className="w-40 h-40 sm:w-48 sm:h-48 object-contain drop-shadow-lg select-none"
+          draggable={false}
+        />
       </div>
       
       <div className="p-4 rounded-2xl bg-stone-500/5 border border-stone-200/80 dark:border-zinc-800 text-xs space-y-2" style={{ borderColor: 'var(--card-border, rgba(229, 231, 235, 0.8))' }}>

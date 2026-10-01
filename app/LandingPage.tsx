@@ -1,18 +1,25 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
 import { LogIn, UserPlus, Sparkles } from 'lucide-react';
 
 export default function LandingPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-between p-6 bg-[#fbf9f5] dark:bg-[var(--bg-main)] text-slate-800 dark:text-slate-100 transition-colors">
+    <div className="relative min-h-screen flex flex-col items-center justify-between p-6 overflow-hidden text-slate-800 dark:text-slate-100 transition-colors">
       
+      {/* 5-Frame Stop-Motion Background (Walang opacity fading, pure frame switch) */}
+      <div className="absolute inset-0 bg-cover bg-center bg-no-repeat z-0 animate-windup-bg" />
+
+      {/* Napaka-manipis na dark/light tint para lumutang nang maayos ang card pero hindi kumupas ang kulay */}
+      <div className="absolute inset-0 bg-black/10 dark:bg-black/40 pointer-events-none z-1" />
+
       <div></div>
 
-      {/* Main Centered Card with Smooth Fade-in & Scale Animation */}
-      <div className="w-full max-w-md p-8 rounded-3xl bg-white/90 dark:bg-slate-900/90 border border-amber-200/80 dark:border-slate-800 shadow-xl shadow-amber-900/15 backdrop-blur-md text-center space-y-6 animate-in fade-in zoom-in-95 duration-500 ease-out">
+      {/* Main Centered Card */}
+      <div className="relative z-10 w-full max-w-md p-8 rounded-3xl bg-white/95 dark:bg-slate-900/95 border border-amber-200/80 dark:border-slate-800 shadow-2xl shadow-amber-900/20 backdrop-blur-md text-center space-y-6 animate-in fade-in zoom-in-95 duration-500 ease-out">
         
         {/* Top Badge / Pill */}
         <div className="inline-flex items-center gap-1.5 py-1 px-3 rounded-full bg-rose-50 dark:bg-rose-950/60 border border-rose-200/60 dark:border-rose-900/50 text-[11px] font-medium text-rose-600 dark:text-rose-300 shadow-xs">
@@ -20,11 +27,16 @@ export default function LandingPage() {
           <span>Your quiet digital keepsake</span>
         </div>
 
-        {/* Logo / Icon Header */}
+        {/* Logo Header */}
         <div className="flex justify-center">
-          <div className="w-12 h-12 rounded-2xl bg-rose-100 dark:bg-rose-950/70 flex items-center justify-center text-rose-600 dark:text-rose-400 font-bold text-lg shadow-sm border border-rose-300/60 transition-transform hover:scale-105 duration-300">
-            W
-          </div>
+          <Image
+            src="/logo.png"
+            alt="Windup logo"
+            width={80}
+            height={80}
+            priority
+            className="w-20 h-20 object-contain drop-shadow-md transition-transform hover:scale-105 duration-300"
+          />
         </div>
 
         {/* Title & Subtitle */}
@@ -39,7 +51,6 @@ export default function LandingPage() {
 
         {/* Action Buttons */}
         <div className="space-y-3 pt-2">
-          {/* Sign In Button */}
           <button
             onClick={() => router.push('/login')}
             className="w-full py-3.5 px-4 rounded-2xl bg-amber-100/90 hover:bg-amber-200 text-amber-950 dark:bg-slate-800 dark:hover:bg-slate-700 dark:text-amber-200 text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-2 border border-amber-300/80 dark:border-slate-600 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
@@ -48,7 +59,6 @@ export default function LandingPage() {
             <span>Sign In to your account</span>
           </button>
 
-          {/* Create Account Button */}
           <button
             onClick={() => router.push('/signup')}
             className="w-full py-3.5 px-4 rounded-2xl bg-rose-100/90 hover:bg-rose-200 text-rose-950 dark:bg-rose-950/70 dark:hover:bg-rose-900 dark:text-rose-200 text-xs font-semibold transition-all duration-200 flex items-center justify-center gap-2 border border-rose-300/80 dark:border-rose-800 shadow-sm hover:scale-[1.02] active:scale-[0.98]"
@@ -78,9 +88,24 @@ export default function LandingPage() {
       </div>
 
       {/* Footer Copyright */}
-      <footer className="text-[11px] text-slate-500 dark:text-slate-500 py-2">
+      <footer className="relative z-10 text-[11px] text-slate-600 dark:text-slate-400 py-2 font-medium drop-shadow-sm">
         Windup &copy; 2026
       </footer>
+
+      {/* True Stop-Motion Keyframes (Walang Fade/Opacity, diretso palit ng frame para laging matingkad) */}
+      <style jsx>{`
+        @keyframes windupAnimation {
+          0% { background-image: url('/landing1.png'); }
+          20% { background-image: url('/landing2.png'); }
+          40% { background-image: url('/landing3.png'); }
+          60% { background-image: url('/landing4.png'); }
+          80%, 100% { background-image: url('/landing5.png'); }
+        }
+
+        .animate-windup-bg {
+          animation: windupAnimation 2.5s infinite steps(1);
+        }
+      `}</style>
 
     </div>
   );
