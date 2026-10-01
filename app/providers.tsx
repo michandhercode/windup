@@ -7,7 +7,7 @@ import { Letter } from '@/types/letter';
 interface LetterContextType {
   letters: Letter[];
   setLetters: React.Dispatch<React.SetStateAction<Letter[]>>;
-  addLetter: (letter: Omit<Letter, "id" | "createdAt" | "updatedAt"> & { mood?: string | undefined }) => void;
+  addLetter: (letter: Omit<Letter, "id" | "createdAt" | "updatedAt"> & { id?: string; mood?: string | undefined }) => void;
   updateLetter: (id: string, updatedFields: Partial<Letter>) => void;
   getLetterById: (id: string) => Letter | undefined;
   displayName: string;
@@ -48,19 +48,38 @@ export function Providers({ children }: { children: React.ReactNode }) {
     localStorage.setItem("windup_display_name", name);
   };
 
-  const addLetter = (letterData: Omit<Letter, "id" | "createdAt" | "updatedAt"> & { mood?: string | undefined }) => {
+  const addLetter = (letterData: Omit<Letter, "id" | "createdAt" | "updatedAt"> & { id?: string; mood?: string | undefined }) => {
     const now = new Date().toISOString();
-    
     const finalMood = letterData.mood || 'neutral';
+    const incomingId = letterData.id;
 
-    const newLetter: Letter = {
-      ...letterData,
-      mood: finalMood as any,
-      id: crypto.randomUUID ? crypto.randomUUID() : Date.now().toString(),
-      createdAt: now,
-      updatedAt: now,
-    };
-    setLetters((prev) => [newLetter, ...prev]);
+    setLetters((prev) => {
+      // UPSERT: if a letter with this id already exists, update it in place
+      if (incomingId && prev.some((l) => l.id === incomingId)) {
+        return prev.map((l) =>
+          l.id === incomingId
+            ? {
+                ...l,
+                ...letterData,
+                id: l.id,
+                mood: finalMood as any,
+                createdAt: l.createdAt,
+                updatedAt: now,
+              }
+            : l
+        );
+      }
+
+      // Otherwise create a brand new entry
+      const newLetter: Letter = {
+        ...letterData,
+        mood: finalMood as any,
+        id: incomingId || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()),
+        createdAt: now,
+        updatedAt: now,
+      };
+      return [newLetter, ...prev];
+    });
   };
 
   const updateLetter = (id: string, updatedFields: Partial<Letter>) => {

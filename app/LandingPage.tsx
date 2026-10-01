@@ -7,7 +7,7 @@ export default function LandingPage() {
   const router = useRouter();
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-between p-6 bg-[#fbf9f5] dark:bg-slate-950 text-slate-800 dark:text-slate-100 transition-colors">
+    <div className="min-h-screen flex flex-col items-center justify-between p-6 bg-[#fbf9f5] dark:bg-[var(--bg-main)] text-slate-800 dark:text-slate-100 transition-colors">
       
       <div></div>
 
@@ -61,7 +61,7 @@ export default function LandingPage() {
         {/* Divider OR */}
         <div className="relative flex py-1 items-center">
           <div className="flex-grow border-t border-slate-300 dark:border-slate-700"></div>
-          <span className="flex-shrink mx-4 text-[10px] uppercase tracking-wider text-slate-500 font-bold">or</span>
+          <span className="flex-shrink mx-4 text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">or</span>
           <div className="flex-grow border-t border-slate-300 dark:border-slate-700"></div>
         </div>
 

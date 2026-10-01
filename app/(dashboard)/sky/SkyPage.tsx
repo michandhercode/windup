@@ -52,7 +52,9 @@ export default function SkyPage() {
     }
   }, []);
 
-  const userLettersFormatted = letters.map((l) => ({
+  const userLettersFormatted = letters
+    .filter((l) => l.visibility === 'anonymous_public' || l.status === 'released')
+    .map((l) => ({
     id: l.id,
     title: l.title || 'Untitled Thought',
     content: l.content,
@@ -133,9 +135,9 @@ export default function SkyPage() {
       <div className="z-10 w-full max-w-3xl bg-white/60 dark:bg-slate-900/60 backdrop-blur-md border border-white/80 dark:border-slate-800 rounded-2xl p-4 shadow-sm flex flex-wrap items-center justify-between gap-3">
         <div>
           <h1 className="text-sm font-bold text-slate-800 dark:text-slate-100">
-            The Sky <span className="font-normal text-xs text-slate-500">(Public Ocean)</span>
+            The Sky <span className="font-normal text-xs text-slate-500 dark:text-slate-400">(Public Ocean)</span>
           </h1>
-          <p className="text-[11px] text-slate-500">Catching 5 random paper planes drifting around.</p>
+          <p className="text-[11px] text-slate-500 dark:text-slate-400">Catching 5 random paper planes drifting around.</p>
         </div>
 
         <div className="flex items-center gap-3 text-xs">

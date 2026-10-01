@@ -27,11 +27,11 @@ import SealDatePicker from '@/components/SealDatePicker';
 const MAX_WORDS = 1000;
 
 const MOODS = [
-  { id: 'peaceful', label: 'Peaceful', color: 'bg-emerald-100/70 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-900/50 hover:bg-emerald-200/60', activeBg: 'bg-emerald-300 dark:bg-emerald-700 text-emerald-950 dark:text-emerald-50 border-emerald-400 dark:border-emerald-600 shadow-sm', icon: Feather },
-  { id: 'reflective', label: 'Reflective', color: 'bg-sky-100/70 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-900/50 hover:bg-sky-200/60', activeBg: 'bg-sky-300 dark:bg-sky-700 text-sky-950 dark:text-sky-50 border-sky-400 dark:border-sky-600 shadow-sm', icon: BookOpen },
-  { id: 'nostalgic', label: 'Nostalgic', color: 'bg-amber-100/70 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-900/50 hover:bg-amber-200/60', activeBg: 'bg-amber-300 dark:bg-amber-700 text-amber-950 dark:text-amber-50 border-amber-400 dark:border-amber-600 shadow-sm', icon: Clock },
-  { id: 'heavy', label: 'Heavy', color: 'bg-purple-100/70 text-purple-800 dark:text-purple-200 border-purple-200 dark:border-purple-900/50 hover:bg-purple-200/60', activeBg: 'bg-purple-300 dark:bg-purple-700 text-purple-950 dark:text-purple-50 border-purple-400 dark:border-purple-600 shadow-sm', icon: CloudRain },
-  { id: 'hopeful', label: 'Hopeful', color: 'bg-rose-100/70 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-900/50 hover:bg-rose-200/60', activeBg: 'bg-rose-300 dark:bg-rose-700 text-rose-950 dark:text-rose-50 border-rose-400 dark:border-rose-600 shadow-sm', icon: HeartHandshake },
+  { id: 'peaceful', label: 'Peaceful', color: 'bg-emerald-100/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-200/60 dark:hover:bg-emerald-900/50', activeBg: 'bg-emerald-300 dark:bg-emerald-300 text-emerald-950 dark:text-emerald-950 border-emerald-400 dark:border-emerald-200 shadow-sm', icon: Feather },
+  { id: 'reflective', label: 'Reflective', color: 'bg-sky-100/70 dark:bg-sky-950/40 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800/60 hover:bg-sky-200/60 dark:hover:bg-sky-900/50', activeBg: 'bg-sky-300 dark:bg-sky-300 text-sky-950 dark:text-sky-950 border-sky-400 dark:border-sky-200 shadow-sm', icon: BookOpen },
+  { id: 'nostalgic', label: 'Nostalgic', color: 'bg-amber-100/70 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800/60 hover:bg-amber-200/60 dark:hover:bg-amber-900/50', activeBg: 'bg-amber-300 dark:bg-amber-300 text-amber-950 dark:text-amber-950 border-amber-400 dark:border-amber-200 shadow-sm', icon: Clock },
+  { id: 'heavy', label: 'Heavy', color: 'bg-purple-100/70 dark:bg-purple-950/40 text-purple-800 dark:text-purple-200 border-purple-200 dark:border-purple-800/60 hover:bg-purple-200/60 dark:hover:bg-purple-900/50', activeBg: 'bg-purple-300 dark:bg-purple-300 text-purple-950 dark:text-purple-950 border-purple-400 dark:border-purple-200 shadow-sm', icon: CloudRain },
+  { id: 'hopeful', label: 'Hopeful', color: 'bg-rose-100/70 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800/60 hover:bg-rose-200/60 dark:hover:bg-rose-900/50', activeBg: 'bg-rose-300 dark:bg-rose-300 text-rose-950 dark:text-rose-950 border-rose-400 dark:border-rose-200 shadow-sm', icon: HeartHandshake },
 ];
 
 function FoldContent() {
@@ -294,8 +294,8 @@ function FoldContent() {
                   aria-haspopup="menu"
                   className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-semibold transition-all duration-150 active:scale-95 cursor-pointer ${
                     visibility === 'anonymous_public'
-                      ? 'bg-sky-100/80 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800/60'
-                      : 'bg-purple-100/80 text-purple-800 dark:text-purple-200 border-purple-200 dark:border-purple-800/60'
+                      ? 'bg-sky-100/80 dark:bg-sky-950/40 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800/60'
+                      : 'bg-purple-100/80 dark:bg-purple-950/40 text-purple-800 dark:text-purple-200 border-purple-200 dark:border-purple-800/60'
                   }`}
                 >
                   {visibility === 'anonymous_public' ? (
