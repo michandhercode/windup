@@ -24,6 +24,7 @@ import { Visibility } from '@/types/letter';
 import SealDatePicker from '@/components/SealDatePicker';
 
 const MAX_WORDS = 1000;
+const MAX_TITLE_LENGTH = 100; // Character limit for title
 
 const MOODS = [
   { id: 'peaceful', label: 'Peaceful', color: 'bg-emerald-100/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-200/60 dark:hover:bg-emerald-900/50', activeBg: 'bg-emerald-300 dark:bg-emerald-300 text-emerald-950 dark:text-emerald-950 border-emerald-400 dark:border-emerald-200 shadow-sm', icon: Feather },
@@ -113,6 +114,11 @@ function FoldContent() {
       return;
     }
 
+    if (title.length > MAX_TITLE_LENGTH) {
+      setErrorMessage(`Your title exceeds the ${MAX_TITLE_LENGTH}-character limit.`);
+      return;
+    }
+
     if (wordCount > MAX_WORDS) {
       setErrorMessage(`Your letter exceeds the 1000-word limit (${wordCount} words). Please shorten it.`);
       return;
@@ -172,6 +178,11 @@ function FoldContent() {
   const handleSaveAsDraft = () => {
     if (!content.trim()) {
       setErrorMessage('Cannot save an empty draft. Please write something first.');
+      return;
+    }
+
+    if (title.length > MAX_TITLE_LENGTH) {
+      setErrorMessage(`Your title exceeds the ${MAX_TITLE_LENGTH}-character limit.`);
       return;
     }
 
@@ -252,15 +263,29 @@ function FoldContent() {
             }`}
           >
             <div className={`space-y-4 transition-all duration-500 ${animType === 'fly' ? '-translate-y-12 opacity-0 blur-xs' : ''}`}>
-              <input
-                type="text"
-                placeholder="Give your thought a title (optional)..."
-                value={title}
-                onChange={(e) => setTitle(e.target.value)}
-                disabled={isAnimating}
-                maxLength={100}
-                className="w-full text-lg font-semibold placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none bg-transparent border-b pb-3 border-teal-100 dark:border-zinc-800 focus:border-teal-300 dark:focus:border-teal-600 transition-colors"
-              />
+              <div className="relative flex items-center">
+                <input
+                  type="text"
+                  placeholder="Give your thought a title (optional)..."
+                  value={title}
+                  onChange={(e) => {
+                    setTitle(e.target.value);
+                    if (errorMessage) setErrorMessage('');
+                  }}
+                  disabled={isAnimating}
+                  maxLength={MAX_TITLE_LENGTH}
+                  className="w-full text-lg font-semibold placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none bg-transparent border-b pb-3 pr-16 border-teal-100 dark:border-zinc-800 focus:border-teal-300 dark:focus:border-teal-600 transition-colors"
+                />
+                <span className={`absolute right-0 bottom-3 text-[11px] font-mono transition-colors ${
+                  title.length >= MAX_TITLE_LENGTH 
+                    ? 'text-rose-500 font-bold' 
+                    : title.length >= MAX_TITLE_LENGTH * 0.9 
+                    ? 'text-amber-500' 
+                    : 'text-stone-400 dark:text-stone-500'
+                }`}>
+                  {title.length} / {MAX_TITLE_LENGTH}
+                </span>
+              </div>
 
               <div className="relative">
                 <textarea
@@ -367,6 +392,10 @@ function FoldContent() {
                     onClick={() => {
                       if (!content.trim()) {
                         setErrorMessage('Please write something before sealing your letter.');
+                        return;
+                      }
+                      if (title.length > MAX_TITLE_LENGTH) {
+                        setErrorMessage(`Your title exceeds the ${MAX_TITLE_LENGTH}-character limit.`);
                         return;
                       }
                       if (wordCount > MAX_WORDS) {

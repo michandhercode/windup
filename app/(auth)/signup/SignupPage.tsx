@@ -2,7 +2,6 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { User, Lock, Mail, ArrowRight, Sparkles, AlertCircle, Eye, EyeOff } from 'lucide-react';
 
@@ -48,22 +47,19 @@ export default function SignupPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-between p-6 bg-[url('/daybg.png')] bg-cover bg-center bg-no-repeat text-slate-800 dark:text-slate-100 transition-colors">
+    <div className="min-h-screen flex flex-col items-center justify-between p-6 text-slate-800 dark:text-slate-100 transition-colors">
       
       <div></div>
 
       {/* Main Centered Card matching the exact Landing Page and Login style */}
       <div className="w-full max-w-md p-8 rounded-3xl bg-white/90 dark:bg-slate-900/90 border border-amber-200/80 dark:border-slate-800 shadow-xl shadow-amber-900/15 backdrop-blur-md space-y-6 animate-in fade-in zoom-in-95 duration-500 ease-out">
         
-        {/* Logo Header */}
+        {/* Logo / Icon Header */}
         <div className="flex justify-center">
-          <Image
+          <img
             src="/logo.png"
             alt="Windup logo"
-            width={80}
-            height={80}
-            priority
-            className="w-20 h-20 object-contain drop-shadow-md transition-transform hover:scale-105 duration-300"
+            className="w-16 h-16 rounded-2xl object-contain shadow-sm"
           />
         </div>
 
