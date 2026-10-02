@@ -1,26 +1,11 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Heart, Feather, BookOpen, Clock, CloudRain, HeartHandshake, CheckCircle2, FoldHorizontal, UserCheck } from 'lucide-react';
+import { Heart, CheckCircle2, FoldHorizontal, UserCheck } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 import { ALL_MOCK_POOL, isPublicPlane } from '@/lib/sky-planes';
-
-const getMoodConfig = (moodString: string) => {
-  const normalized = moodString?.toLowerCase() || 'peaceful';
-  switch (normalized) {
-    case 'peaceful':
-      return { label: 'Peaceful', icon: Feather, badgeClass: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-300/40 dark:border-emerald-800/50' };
-    case 'reflective':
-      return { label: 'Reflective', icon: BookOpen, badgeClass: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-300/40 dark:border-sky-800/50' };
-    case 'nostalgic':
-      return { label: 'Nostalgic', icon: Clock, badgeClass: 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-300/40 dark:border-amber-800/50' };
-    case 'heavy':
-      return { label: 'Heavy', icon: CloudRain, badgeClass: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-300/40 dark:border-purple-800/50' };
-    case 'hopeful':
-    default:
-      return { label: 'Hopeful', icon: HeartHandshake, badgeClass: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-300/40 dark:border-rose-800/50' };
-  }
-};
+import ViewLetterModal, { LetterModalAction } from '@/components/ViewLetterModal';
+import { formatLetterDate } from '@/lib/format';
 
 const PLANES_PER_CATCH = 7;
 
@@ -45,7 +30,6 @@ export default function SkyPage() {
   const [currentBatch, setCurrentBatch] = useState<any[]>([]);
   
   const [readPlaneIds, setReadPlaneIds] = useState<string[]>([]);
-  const [isClosing, setIsClosing] = useState(false);
 
   useEffect(() => {
     const savedReads = localStorage.getItem('sky_read_planes');
@@ -99,7 +83,6 @@ export default function SkyPage() {
   const handleOpenPlane = (plane: any) => {
     setSelectedPlane(plane);
     setLiked(false);
-    setIsClosing(false);
 
     if (!readPlaneIds.includes(plane.id)) {
       const updatedReads = [...readPlaneIds, plane.id];
@@ -108,21 +91,10 @@ export default function SkyPage() {
     }
   };
 
-  const handleRefoldPlane = () => {
-    setIsClosing(true);
-    setTimeout(() => {
-      setSelectedPlane(null);
-      setIsClosing(false);
-    }, 200);
-  };
-
   const activePlanes = currentBatch.map((plane) => ({
     ...plane,
     isRead: readPlaneIds.includes(plane.id),
   }));
-
-  const selectedMoodConfig = selectedPlane ? getMoodConfig(selectedPlane.mood) : null;
-  const SelectedMoodIcon = selectedMoodConfig?.icon;
 
   return (
     <div className="relative w-full min-h-[calc(100dvh-65px)] overflow-hidden flex flex-col items-center justify-between p-4 sm:p-6">
@@ -261,58 +233,44 @@ export default function SkyPage() {
         .animate-float { animation: float infinite ease-in-out; }
       `}</style>
 
-      {/* Modal Popup View */}
-      {selectedPlane && selectedMoodConfig && SelectedMoodIcon && (
-        <div className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm transition-opacity duration-200 ${isClosing ? 'opacity-0' : 'animate-in fade-in duration-200'}`}>
-          <div className={`relative w-full max-w-md max-h-[85vh] flex flex-col p-6 rounded-3xl bg-amber-50/95 dark:bg-slate-900 border border-amber-200/80 dark:border-slate-800 shadow-2xl space-y-4 transform transition-all duration-300 ${isClosing ? 'scale-95 opacity-0' : 'animate-in zoom-in-95 duration-200'}`}>
-            
-            <div className="flex items-center justify-between text-xs text-slate-400 shrink-0">
-              <span className="font-mono flex items-center gap-1">
-                {selectedPlane.isUserOwner ? (
-                  <span className="text-indigo-600 dark:text-indigo-400 font-bold flex items-center gap-1">
-                    <UserCheck className="w-3.5 h-3.5" /> Your Letter
-                  </span>
-                ) : (
-                  'Anonymous Plane'
-                )}
-              </span>
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold border ${selectedMoodConfig.badgeClass}`}>
-                <SelectedMoodIcon className="w-3.5 h-3.5" />
-                {selectedMoodConfig.label}
-              </span>
-            </div>
-
-            <h2 className="text-xl font-serif font-bold text-slate-800 dark:text-slate-100 shrink-0">{selectedPlane.title}</h2>
-            
-            <div className="overflow-y-auto max-h-[45vh] pr-1 border-t border-b border-amber-200/50 py-4 font-serif custom-scrollbar">
-              <p className="text-xs sm:text-sm leading-relaxed text-slate-600 dark:text-slate-300 whitespace-pre-wrap">
-                {selectedPlane.content}
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between pt-1 shrink-0">
-              <button
+      {/* Shared letter viewer */}
+      <ViewLetterModal
+        letter={
+          selectedPlane && {
+            title: selectedPlane.title,
+            content: selectedPlane.content,
+            mood: selectedPlane.mood,
+            dateLabel: formatLetterDate(selectedPlane.createdAt),
+          }
+        }
+        onClose={() => setSelectedPlane(null)}
+        byline={
+          selectedPlane?.isUserOwner ? (
+            <span className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-semibold">
+              <UserCheck className="w-3.5 h-3.5" /> Your Letter
+            </span>
+          ) : (
+            'Anonymous Plane'
+          )
+        }
+        actions={(requestClose) =>
+          selectedPlane && (
+            <>
+              <LetterModalAction
+                tone="rose"
+                active={liked}
+                icon={<Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />}
                 onClick={() => setLiked(!liked)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold transition-all ${
-                  liked ? 'bg-rose-500 text-white' : 'bg-rose-100/80 text-rose-600'
-                }`}
               >
-                <Heart className={`w-3.5 h-3.5 ${liked ? 'fill-current' : ''}`} />
                 Like ({selectedPlane.likes + (liked ? 1 : 0)})
-              </button>
-              
-              <button
-                onClick={handleRefoldPlane}
-                className="flex items-center gap-1.5 px-4 py-1.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-white dark:bg-slate-100 dark:text-slate-900 text-xs font-semibold shadow-sm transition-all active:scale-95"
-              >
-                <FoldHorizontal className="w-3.5 h-3.5" />
+              </LetterModalAction>
+              <LetterModalAction icon={<FoldHorizontal className="w-4 h-4" />} onClick={requestClose}>
                 Refold Plane
-              </button>
-            </div>
-
-          </div>
-        </div>
-      )}
+              </LetterModalAction>
+            </>
+          )
+        }
+      />
 
     </div>
   );

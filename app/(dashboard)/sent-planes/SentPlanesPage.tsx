@@ -1,25 +1,11 @@
 'use client';
 
 import { useState } from 'react';
-import { Calendar, Heart, Trash2, Feather, BookOpen, Clock, CloudRain, HeartHandshake, BookmarkCheck, AlertCircle } from 'lucide-react';
+import { Calendar, Heart, Trash2, BookmarkCheck } from 'lucide-react';
 import { useLetters } from '@/app/providers';
-
-const getMoodConfig = (moodString: string) => {
-  const normalized = moodString?.toLowerCase() || 'peaceful';
-  switch (normalized) {
-    case 'peaceful':
-      return { label: 'Peaceful', icon: Feather, badgeClass: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-300/50 dark:border-emerald-800/60' };
-    case 'reflective':
-      return { label: 'Reflective', icon: BookOpen, badgeClass: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-300/50 dark:border-sky-800/60' };
-    case 'nostalgic':
-      return { label: 'Nostalgic', icon: Clock, badgeClass: 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-300/50 border-amber-800/60' };
-    case 'heavy':
-      return { label: 'Heavy', icon: CloudRain, badgeClass: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-300/50 dark:border-purple-800/60' };
-    case 'hopeful':
-    default:
-      return { label: 'Hopeful', icon: HeartHandshake, badgeClass: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-300/50 dark:border-rose-800/60' };
-  }
-};
+import AlertModal, { type AlertVariant } from '@/components/AlertModal';
+import { getMoodConfig } from '@/lib/mood';
+import ViewLetterModal, { LetterModalAction, LetterModalChip } from '@/components/ViewLetterModal';
 
 export default function SentPlanesPage() {
   const { letters, setLetters } = useLetters();
@@ -29,11 +15,15 @@ export default function SentPlanesPage() {
     isOpen: boolean;
     title: string;
     message: string;
+    variant: AlertVariant;
+    confirmLabel: string;
     onConfirm: () => void;
   }>({
     isOpen: false,
     title: '',
     message: '',
+    variant: 'primary',
+    confirmLabel: 'Confirm',
     onConfirm: () => {},
   });
 
@@ -54,6 +44,8 @@ export default function SentPlanesPage() {
       isOpen: true,
       title: 'Recall Paper Plane',
       message: 'Are you sure you want to recall/delete this paper plane from the sky?',
+      variant: 'destructive',
+      confirmLabel: 'Delete',
       onConfirm: () => {
         if (setLetters) {
           setLetters(letters.filter((l) => l.id !== id));
@@ -70,6 +62,8 @@ export default function SentPlanesPage() {
       isOpen: true,
       title: 'Keep in Jar',
       message: 'Move this plane back to your private jar? It will no longer be visible in the public sky.',
+      variant: 'primary',
+      confirmLabel: 'Keep in Jar',
       onConfirm: () => {
         if (setLetters) {
           setLetters(
@@ -87,9 +81,6 @@ export default function SentPlanesPage() {
   };
 
   const totalResonated = sentPlanes.reduce((acc, item) => acc + item.resonated, 0);
-
-  const selectedCfg = selectedPlane ? getMoodConfig(selectedPlane.mood) : null;
-  const SelectedMoodIcon = selectedCfg?.icon;
 
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 min-h-screen space-y-6">
@@ -147,58 +138,61 @@ export default function SentPlanesPage() {
             const MoodIcon = cfg.icon;
 
             return (
-              <div
+              <article
                 key={plane.id}
                 onClick={() => setSelectedPlane(plane)}
-                className="group relative flex flex-col justify-between p-5 rounded-3xl border border-sky-100 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-sky-300/80 hover:shadow-xl hover:-translate-y-1 transition-all duration-300 space-y-4 cursor-pointer"
+                className={`group relative flex flex-col overflow-hidden rounded-2xl border shadow-xs transition-all duration-300 cursor-pointer hover:-translate-y-0.5 hover:shadow-md ${cfg.paperClass}`}
               >
-                <div className="flex items-center justify-between text-xs">
-                  <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold border ${cfg.badgeClass}`}>
-                    <MoodIcon className="w-3.5 h-3.5" />
-                    {cfg.label}
-                  </span>
+                <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1.5 ${cfg.accentClass}`} />
 
-                  <div className="flex items-center gap-1 text-slate-400 text-[11px] font-medium">
-                    <Calendar className="w-3.5 h-3.5" />
-                    {plane.createdAt}
+                <div className="flex flex-1 flex-col gap-3 p-5 pl-6">
+                  <div className="flex items-center justify-between gap-2">
+                    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${cfg.badgeClass}`}>
+                      <MoodIcon className="h-3.5 w-3.5" />
+                      {cfg.label}
+                    </span>
+                    <span className="inline-flex items-center gap-1 text-[11px] font-medium text-slate-500 dark:text-slate-400">
+                      <Calendar className="h-3 w-3" />
+                      {plane.createdAt}
+                    </span>
                   </div>
-                </div>
 
-                <div className="space-y-1.5 flex-1">
-                  {plane.title && (
-                    <h3 className="font-bold text-sm text-slate-800 dark:text-slate-100 group-hover:text-sky-600 dark:group-hover:text-sky-400 transition-colors">
+                  <div className="flex-1 space-y-2">
+                    <h3 className="line-clamp-1 font-serif text-base font-semibold leading-snug text-slate-900 dark:text-slate-50">
                       {plane.title}
                     </h3>
-                  )}
-                  <p className="text-xs font-serif italic leading-relaxed text-slate-600 dark:text-slate-300 line-clamp-4">
-                    "{plane.content}"
-                  </p>
-                </div>
-
-                <div className="pt-3 border-t border-slate-100 dark:border-slate-800/80 flex items-center justify-between">
-                  <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-rose-50 dark:bg-rose-950/40 border border-rose-100 dark:border-rose-900/50 text-rose-600 dark:text-rose-300 text-xs font-bold">
-                    <Heart className="w-3.5 h-3.5 fill-current" />
-                    <span>{plane.resonated} Resonated</span>
+                    <p className="line-clamp-4 font-serif text-[13px] leading-relaxed text-slate-600 dark:text-slate-300">
+                      {plane.content}
+                    </p>
                   </div>
 
-                  <div className="flex items-center gap-1" onClick={(e) => e.stopPropagation()}>
-                    <button
-                      onClick={(e) => handleKeepInJar(plane.id, e)}
-                      title="Keep in Jar (Make Private)"
-                      className="p-2 rounded-xl text-slate-400 hover:text-sky-600 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-colors"
-                    >
-                      <BookmarkCheck className="w-4 h-4" />
-                    </button>
-                    <button
-                      onClick={(e) => handleDelete(plane.id, e)}
-                      title="Recall / Delete Plane"
-                      className="p-2 rounded-xl text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition-colors"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </button>
+                  <div className="flex items-center justify-between gap-2 border-t border-dashed border-slate-300/70 pt-3 dark:border-slate-700">
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1 text-xs font-semibold text-rose-800 dark:border-rose-800 dark:bg-rose-950 dark:text-rose-200">
+                      <Heart className="h-3.5 w-3.5 fill-current" />
+                      {plane.resonated} Resonated
+                    </span>
+
+                    <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
+                      <button
+                        type="button"
+                        onClick={(e) => handleKeepInJar(plane.id, e)}
+                        title="Keep in Jar (Make Private)"
+                        className="cursor-pointer rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-900/5 hover:text-sky-700 dark:text-slate-400 dark:hover:bg-white/10"
+                      >
+                        <BookmarkCheck className="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        onClick={(e) => handleDelete(plane.id, e)}
+                        title="Recall / Delete Plane"
+                        className="cursor-pointer rounded-lg p-2 text-slate-500 transition-colors hover:bg-slate-900/5 hover:text-rose-700 dark:text-slate-400 dark:hover:bg-white/10"
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </button>
+                    </div>
                   </div>
                 </div>
-              </div>
+              </article>
             );
           })}
         </div>
@@ -219,93 +213,47 @@ export default function SentPlanesPage() {
         </div>
       )}
 
-      {/* Selected Plane Modal - Sky Blue Theme */}
-      {selectedPlane && selectedCfg && SelectedMoodIcon && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          <div className="relative w-full max-w-4xl max-h-[85vh] flex flex-col p-8 sm:p-10 rounded-3xl bg-sky-50/95 dark:bg-slate-900 border border-sky-200/80 dark:border-slate-800 shadow-2xl space-y-5">
-            
-            <div className="flex items-center justify-between text-xs text-slate-400 shrink-0">
-              <span className="font-mono flex items-center gap-1">
-                <Calendar className="w-3.5 h-3.5" /> {selectedPlane.createdAt}
-              </span>
-              <span className={`inline-flex items-center gap-1.5 px-3 py-1 rounded-xl text-xs font-semibold border ${selectedCfg.badgeClass}`}>
-                <SelectedMoodIcon className="w-3.5 h-3.5" />
-                {selectedCfg.label}
-              </span>
-            </div>
-
-            <h2 className="text-xl sm:text-2xl font-serif font-bold text-slate-800 dark:text-slate-100 shrink-0">
-              {selectedPlane.title}
-            </h2>
-            
-            <div className="overflow-y-auto max-h-[50vh] pr-2 border-t border-b border-sky-200/60 dark:border-slate-800/80 py-5 font-serif custom-scrollbar">
-              <p className="text-sm sm:text-base leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
-                "{selectedPlane.content}"
-              </p>
-            </div>
-
-            <div className="flex items-center justify-between pt-2 shrink-0">
-              <div className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl bg-rose-100 dark:bg-rose-950/40 text-rose-600 dark:text-rose-300 text-xs font-bold">
-                <Heart className="w-4 h-4 fill-current" />
-                <span>{selectedPlane.resonated} Resonated</span>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <button
-                  onClick={(e) => handleKeepInJar(selectedPlane.id, e)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-200/70 text-sky-800 dark:bg-sky-950 dark:text-sky-300 text-xs font-semibold hover:bg-sky-300/70 transition-colors cursor-pointer"
-                >
-                  <BookmarkCheck className="w-4 h-4" />
-                  Keep in Jar
-                </button>
-                <button
-                  onClick={() => setSelectedPlane(null)}
-                  className="px-6 py-2 rounded-xl bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 text-xs font-semibold shadow-sm hover:opacity-90 transition-opacity cursor-pointer"
-                >
-                  Close
-                </button>
-              </div>
-            </div>
-
-          </div>
-        </div>
-      )}
-
-      {/* Confirmation Dialog - Sky Blue Accent */}
-      {confirmConfig.isOpen && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
-          <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
-            <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
-                <AlertCircle className="w-6 h-6" />
-              </div>
-              <div>
-                <h3 className="text-base font-bold text-slate-900 dark:text-slate-100">{confirmConfig.title}</h3>
-                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">Confirmation required</p>
-              </div>
-            </div>
-
-            <p className="text-xs sm:text-sm text-slate-600 dark:text-slate-300 leading-relaxed">
-              {confirmConfig.message}
-            </p>
-
-            <div className="flex items-center justify-end gap-2 pt-2">
-              <button
-                onClick={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
-                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
+      {/* Shared letter viewer */}
+      <ViewLetterModal
+        letter={
+          selectedPlane && {
+            title: selectedPlane.title,
+            content: selectedPlane.content,
+            mood: selectedPlane.mood,
+            dateLabel: selectedPlane.createdAt,
+          }
+        }
+        onClose={() => setSelectedPlane(null)}
+        actions={
+          selectedPlane && (
+            <>
+              <LetterModalChip icon={<Heart className="w-4 h-4 fill-current" />}>
+                {selectedPlane.resonated} Resonated
+              </LetterModalChip>
+              <LetterModalAction
+                tone="sky"
+                icon={<BookmarkCheck className="w-4 h-4" />}
+                onClick={(e) => handleKeepInJar(selectedPlane.id, e)}
               >
-                Cancel
-              </button>
-              <button
-                onClick={confirmConfig.onConfirm}
-                className="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 transition-colors shadow-sm cursor-pointer"
-              >
-                Confirm
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
+                Keep in Jar
+              </LetterModalAction>
+            </>
+          )
+        }
+      />
+
+      {/* Confirmation Dialog */}
+      <AlertModal
+        isOpen={confirmConfig.isOpen}
+        onClose={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
+        title={confirmConfig.title}
+        subtitle="Confirmation required"
+        icon={confirmConfig.variant === 'destructive' ? Trash2 : BookmarkCheck}
+        variant={confirmConfig.variant}
+        confirmLabel={confirmConfig.confirmLabel}
+        onConfirm={confirmConfig.onConfirm}
+        description={confirmConfig.message}
+      />
 
     </div>
   );
