@@ -130,7 +130,7 @@ export default function SkyPage() {
       {/* Full-viewport sky background */}
       <div
         aria-hidden="true"
-        className="fixed inset-0 z-0 bg-[url('/sky_bg/daysky.png')] dark:bg-[url('/sky_bg/nightsky.png')] bg-cover bg-center bg-no-repeat bg-sky-200 dark:bg-slate-900"
+        className="fixed inset-0 z-0 bg-[url('/sky_bg/daysky.webp')] dark:bg-[url('/sky_bg/nightsky.webp')] bg-cover bg-center bg-no-repeat bg-sky-200 dark:bg-slate-900"
       />
 
       {/* Semi-transparent Glassy Pastel Header Card */}
@@ -140,6 +140,12 @@ export default function SkyPage() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <div className="space-y-0.5">
             <div className="flex items-center gap-2">
+              <img
+                src="/logo_and_icons/sky_icon.webp"
+                alt=""
+                className="w-9 h-9 sm:w-10 sm:h-10 object-contain shrink-0 select-none"
+                draggable={false}
+              />
               <h1 className="text-base sm:text-lg font-bold tracking-tight text-slate-800 dark:text-slate-100">
                 The Sky
               </h1>
@@ -212,7 +218,7 @@ export default function SkyPage() {
                 className="relative block cursor-pointer bg-transparent border-0 p-0 transition-transform duration-300 hover:scale-110 active:scale-95 focus:outline-hidden focus-visible:ring-2 focus-visible:ring-white/80 rounded-2xl"
               >
                 <img
-                  src={plane.isUserOwner ? '/my_plane.png' : '/users_plane.png'}
+                  src={plane.isUserOwner ? '/logo_and_icons/my_plane.webp' : '/logo_and_icons/users_plane.webp'}
                   alt={plane.isUserOwner ? 'Your paper plane' : 'Paper plane'}
                   draggable={false}
                   className={`w-24 h-24 sm:w-32 sm:h-32 object-contain select-none transition-all duration-300 ${

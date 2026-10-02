@@ -36,6 +36,7 @@ export default function SignupPage() {
 
       localStorage.setItem('windup_display_name', trimmedName);
       localStorage.setItem('windup_user_email', email.trim());
+      localStorage.setItem('windup_member_since', new Date().toISOString());
       localStorage.setItem('windup_user', JSON.stringify({ name: trimmedName, email: email.trim() }));
 
       window.dispatchEvent(new Event('windup_profile_updated'));
@@ -57,7 +58,7 @@ export default function SignupPage() {
         {/* Logo / Icon Header */}
         <div className="flex justify-center">
           <img
-            src="/logo.png"
+            src="/logo_and_icons/logo.webp"
             alt="Windup logo"
             className="w-16 h-16 rounded-2xl object-contain shadow-sm"
           />

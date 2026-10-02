@@ -37,7 +37,7 @@ export default function LandingPage() {
         {FRAMES.map((n, i) => (
           <img
             key={`light-${n}`}
-            src={`/landing_bg/landing${n}.png`}
+            src={`/landing_bg/landing${n}.webp`}
             alt=""
             draggable={false}
             className={`absolute inset-0 w-full h-full object-cover dark:hidden ${i === frame ? 'opacity-100' : 'opacity-0'}`}
@@ -46,7 +46,7 @@ export default function LandingPage() {
         {FRAMES.map((n, i) => (
           <img
             key={`dark-${n}`}
-            src={`/landing_bg/darklanding${n}.png`}
+            src={`/landing_bg/darklanding${n}.webp`}
             alt=""
             draggable={false}
             className={`absolute inset-0 w-full h-full object-cover hidden dark:block ${i === frame ? 'opacity-100' : 'opacity-0'}`}
@@ -62,7 +62,7 @@ export default function LandingPage() {
         {/* Logo Header */}
         <div className="flex justify-center">
           <img
-            src="/logo.png"
+            src="/logo_and_icons/logo.webp"
             alt="Windup logo"
             className="w-16 h-16 rounded-2xl object-contain shadow-xs transition-transform hover:scale-105 duration-300"
           />
@@ -107,7 +107,7 @@ export default function LandingPage() {
               {/* Static Paper Plane Image */}
               <div className="shrink-0">
                 <img
-                  src="/my_plane.png"
+                  src="/logo_and_icons/my_plane.webp"
                   alt="Paper plane"
                   className="w-11 h-11 object-contain transition-transform duration-300 group-hover:scale-105"
                 />

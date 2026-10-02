@@ -5,24 +5,21 @@ import { useRouter } from 'next/navigation';
 import { useLetters } from '@/app/providers';
 import { Letter, LetterStatus } from '@/types/letter';
 import { 
-  Archive, 
   Lock, 
-  FileText, 
   Sparkles, 
   Box, 
-  Layers, 
   Eye, 
   Edit3, 
   Trash2, 
   Calendar, 
-  BookmarkCheck, 
   Feather, 
   BookOpen, 
   Clock, 
   CloudRain, 
   HeartHandshake,
   AlertTriangle,
-  Send 
+  Send,
+  PenLine
 } from 'lucide-react';
 
 const getMoodConfig = (moodString?: string) => {
@@ -149,23 +146,32 @@ export default function JarPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 min-h-screen space-y-6 relative">
       
-      <div className="p-6 rounded-3xl border border-pink-300/80 dark:border-pink-900/60 bg-gradient-to-r from-pink-100/90 via-pink-50/85 to-rose-100/90 dark:from-pink-950/40 dark:via-rose-950/30 dark:to-pink-900/30 text-pink-950 dark:text-pink-100 shadow-sm transition-colors duration-200">
-        <div className="space-y-1.5">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-pink-500/20 border border-pink-500/40 text-pink-900 dark:text-pink-200 text-[11px] font-bold tracking-wide uppercase">
-            <Archive className="w-3.5 h-3.5" />
-            Private Vault
+      {/* Header Banner */}
+      <div className="p-6 rounded-3xl border border-rose-200/60 dark:border-rose-900/40 bg-rose-50/40 dark:bg-rose-950/20 text-slate-800 dark:text-slate-100 shadow-xs transition-colors duration-200">
+        <div className="flex items-center gap-4 sm:gap-5">
+          <img
+            src="/logo_and_icons/jar_icon.webp"
+            alt="Jar"
+            className="w-16 h-16 sm:w-20 sm:h-20 object-contain shrink-0 drop-shadow-md select-none"
+            draggable={false}
+          />
+          <div className="space-y-1.5 min-w-0 flex-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-rose-500/10 border border-rose-300/40 text-rose-700 dark:text-rose-300 text-[10px] font-bold tracking-wide uppercase">
+              Private Vault
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+              {displayName ? `${displayName}'s Jar` : 'My Jar'}
+            </h1>
+            <p className="text-xs font-medium max-w-2xl leading-relaxed text-slate-600 dark:text-slate-300">
+              Your private safe haven for drafts, kept thoughts, and sealed time-capsules. Select a category from your shelf to browse.
+            </p>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-pink-950 dark:text-pink-50">
-            {displayName ? `${displayName}'s Jar` : 'My Jar'}
-          </h1>
-          <p className="text-xs font-medium max-w-2xl leading-relaxed text-pink-800/90 dark:text-pink-200/80">
-            Your private safe haven for drafts, kept thoughts, and sealed time-capsules. Select a category from your shelf to browse.
-          </p>
         </div>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
+        {/* Sidebar - The Memory Shelf */}
         <div 
           className="lg:col-span-4 rounded-3xl border p-5 space-y-4 shadow-xs transition-colors duration-200"
           style={{ 
@@ -174,12 +180,25 @@ export default function JarPage() {
             color: 'var(--text-main)' 
           }}
         >
-          <div className="flex items-center gap-2 border-b pb-3" style={{ borderColor: 'var(--card-border)' }}>
-            <Box className="w-4 h-4 text-rose-600 dark:text-rose-400" />
-            <h2 className="text-xs font-bold tracking-wider uppercase opacity-80">The Memory Shelf</h2>
+          {/* Shelf Header with subtle inline button */}
+          <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--card-border)' }}>
+            <div className="flex items-center gap-2">
+              <Box className="w-4 h-4 text-rose-600 dark:text-rose-400" />
+              <h2 className="text-xs font-bold tracking-wider uppercase opacity-80">The Memory Shelf</h2>
+            </div>
+
+            {/* Small Compact Button */}
+            <button
+              type="button"
+              onClick={() => router.push('/fold')}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-rose-50 dark:bg-rose-950/40 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-200/80 dark:border-rose-800/60 text-[11px] font-semibold transition-all duration-150 active:scale-95 cursor-pointer shadow-2xs"
+            >
+              <PenLine className="w-3.5 h-3.5" />
+              <span>Fold</span>
+            </button>
           </div>
 
-          <div className="space-y-3">
+          <div className="space-y-3 pt-1">
             
             <div className="space-y-1">
               <button
@@ -193,9 +212,7 @@ export default function JarPage() {
                 style={{ borderColor: filter === 'all' ? undefined : 'var(--card-border)' }}
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-rose-500/20 text-rose-700 dark:text-rose-300">
-                    <Layers className="w-4 h-4" />
-                  </div>
+                  <img src="/logo_and_icons/jar_entries.webp" alt="" className="w-12 h-12 object-contain shrink-0 select-none" draggable={false} />
                   <div>
                     <div className="text-xs font-bold">All Entries</div>
                     <div className="text-[10px] opacity-60">Full collection</div>
@@ -220,9 +237,7 @@ export default function JarPage() {
                 style={{ borderColor: filter === 'draft' ? undefined : 'var(--card-border)' }}
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-blue-500/20 text-blue-700 dark:text-blue-300">
-                    <FileText className="w-4 h-4" />
-                  </div>
+                  <img src="/logo_and_icons/jar_draft.webp" alt="" className="w-12 h-12 object-contain shrink-0 select-none" draggable={false} />
                   <div>
                     <div className="text-xs font-bold">Drafts</div>
                     <div className="text-[10px] opacity-60">Unfinished reflections</div>
@@ -247,9 +262,7 @@ export default function JarPage() {
                 style={{ borderColor: filter === 'kept' ? undefined : 'var(--card-border)' }}
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-emerald-500/20 text-emerald-700 dark:text-emerald-300">
-                    <BookmarkCheck className="w-4 h-4" />
-                  </div>
+                  <img src="/logo_and_icons/jar_kept.webp" alt="" className="w-12 h-12 object-contain shrink-0 select-none" draggable={false} />
                   <div>
                     <div className="text-xs font-bold">Kept</div>
                     <div className="text-[10px] opacity-60">Safely stored entries</div>
@@ -274,9 +287,7 @@ export default function JarPage() {
                 style={{ borderColor: filter === 'sealed' ? undefined : 'var(--card-border)' }}
               >
                 <div className="flex items-center gap-3">
-                  <div className="p-2 rounded-xl bg-amber-500/20 text-amber-700 dark:text-amber-300">
-                    <Lock className="w-4 h-4" />
-                  </div>
+                  <img src="/logo_and_icons/jar_seal.webp" alt="" className="w-12 h-12 object-contain shrink-0 select-none" draggable={false} />
                   <div>
                     <div className="text-xs font-bold">Sealed</div>
                     <div className="text-[10px] opacity-60">Locked time-capsules</div>
@@ -292,6 +303,7 @@ export default function JarPage() {
           </div>
         </div>
 
+        {/* Letters Section */}
         <div className="lg:col-span-8 space-y-4">
           {filteredLetters.length > 0 ? (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -413,9 +425,12 @@ export default function JarPage() {
               className="rounded-3xl border p-12 text-center flex flex-col items-center justify-center space-y-3"
               style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)' }}
             >
-              <div className="p-3 rounded-full bg-rose-500/10 text-rose-600 dark:text-rose-400">
-                <Sparkles className="w-6 h-6" />
-              </div>
+              <img
+                src="/logo_and_icons/jar_empty.webp"
+                alt=""
+                className="w-20 h-20 object-contain select-none opacity-90 transition-transform duration-300 hover:scale-110 hover:-translate-y-1 animate-pulse"
+                draggable={false}
+              />
               <p className="text-xs font-semibold" style={{ color: 'var(--text-muted)' }}>
                 No letters found in this shelf category.
               </p>
@@ -481,6 +496,7 @@ export default function JarPage() {
         </div>
       )}
 
+      {/* Release Confirmation Modal */}
       {letterToRelease && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="relative w-full max-w-sm flex flex-col p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 text-center">
@@ -517,6 +533,7 @@ export default function JarPage() {
         </div>
       )}
 
+      {/* Delete Confirmation Modal */}
       {letterToDelete && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
           <div className="relative w-full max-w-sm flex flex-col p-6 rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl space-y-4 text-center">

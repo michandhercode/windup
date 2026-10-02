@@ -16,7 +16,9 @@ import {
   Lightbulb,
   Archive,
   FileText,
-  AlertCircle
+  AlertCircle,
+  PenTool,
+  Smile
 } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 import { Visibility } from '@/types/letter';
@@ -24,14 +26,14 @@ import { Visibility } from '@/types/letter';
 import SealDatePicker from '@/components/SealDatePicker';
 
 const MAX_WORDS = 1000;
-const MAX_TITLE_LENGTH = 100; // Character limit for title
+const MAX_TITLE_LENGTH = 100;
 
 const MOODS = [
-  { id: 'peaceful', label: 'Peaceful', color: 'bg-emerald-100/70 dark:bg-emerald-950/40 text-emerald-800 dark:text-emerald-200 border-emerald-200 dark:border-emerald-800/60 hover:bg-emerald-200/60 dark:hover:bg-emerald-900/50', activeBg: 'bg-emerald-300 dark:bg-emerald-300 text-emerald-950 dark:text-emerald-950 border-emerald-400 dark:border-emerald-200 shadow-sm', icon: Feather },
-  { id: 'reflective', label: 'Reflective', color: 'bg-sky-100/70 dark:bg-sky-950/40 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800/60 hover:bg-sky-200/60 dark:hover:bg-sky-900/50', activeBg: 'bg-sky-300 dark:bg-sky-300 text-sky-950 dark:text-sky-950 border-sky-400 dark:border-sky-200 shadow-sm', icon: BookOpen },
-  { id: 'nostalgic', label: 'Nostalgic', color: 'bg-amber-100/70 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 border-amber-200 dark:border-amber-800/60 hover:bg-amber-200/60 dark:hover:bg-amber-900/50', activeBg: 'bg-amber-300 dark:bg-amber-300 text-amber-950 dark:text-amber-950 border-amber-400 dark:border-amber-200 shadow-sm', icon: Clock },
-  { id: 'heavy', label: 'Heavy', color: 'bg-purple-100/70 dark:bg-purple-950/40 text-purple-800 dark:text-purple-200 border-purple-200 dark:border-purple-800/60 hover:bg-purple-200/60 dark:hover:bg-purple-900/50', activeBg: 'bg-purple-300 dark:bg-purple-300 text-purple-950 dark:text-purple-950 border-purple-400 dark:border-purple-200 shadow-sm', icon: CloudRain },
-  { id: 'hopeful', label: 'Hopeful', color: 'bg-rose-100/70 dark:bg-rose-950/40 text-rose-800 dark:text-rose-200 border-rose-200 dark:border-rose-800/60 hover:bg-rose-200/60 dark:hover:bg-rose-900/50', activeBg: 'bg-rose-300 dark:bg-rose-300 text-rose-950 dark:text-rose-950 border-rose-400 dark:border-rose-200 shadow-sm', icon: HeartHandshake },
+  { id: 'peaceful', label: 'Peaceful', color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-300/50 hover:bg-emerald-500/20', activeBg: 'bg-emerald-600 text-white border-emerald-600 shadow-xs', icon: Feather },
+  { id: 'reflective', label: 'Reflective', color: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-300/50 hover:bg-sky-500/20', activeBg: 'bg-sky-600 text-white border-sky-600 shadow-xs', icon: BookOpen },
+  { id: 'nostalgic', label: 'Nostalgic', color: 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-300/50 hover:bg-amber-500/20', activeBg: 'bg-amber-600 text-white border-amber-600 shadow-xs', icon: Clock },
+  { id: 'heavy', label: 'Heavy', color: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-300/50 hover:bg-purple-500/20', activeBg: 'bg-purple-600 text-white border-purple-600 shadow-xs', icon: CloudRain },
+  { id: 'hopeful', label: 'Hopeful', color: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-300/50 hover:bg-rose-500/20', activeBg: 'bg-rose-600 text-white border-rose-600 shadow-xs', icon: HeartHandshake },
 ];
 
 function FoldContent() {
@@ -222,47 +224,66 @@ function FoldContent() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 min-h-screen space-y-6">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 min-h-screen space-y-6 relative">
       
+      {/* Notifications */}
       {successMessage && (
-        <div className="bg-emerald-100/80 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2.5 shadow-xs animate-in fade-in slide-in-from-top-2 duration-300">
-          <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-300 shrink-0" />
+        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-semibold flex items-center gap-2.5 shadow-xs animate-in fade-in slide-in-from-top-2 duration-300">
+          <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
           <span>{successMessage}</span>
         </div>
       )}
 
       {errorMessage && (
-        <div className="bg-rose-100/80 dark:bg-rose-950/60 border border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2.5 shadow-xs animate-in fade-in slide-in-from-top-2 duration-300">
-          <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-300 shrink-0" />
+        <div className="p-4 rounded-2xl bg-rose-50 dark:bg-rose-950/60 border border-rose-200 dark:border-rose-800 text-rose-800 dark:text-rose-200 text-xs font-semibold flex items-center gap-2.5 shadow-xs animate-in fade-in slide-in-from-top-2 duration-300">
+          <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
           <span>{errorMessage}</span>
         </div>
       )}
 
-      <div className="p-6 rounded-3xl border border-teal-200/60 dark:border-teal-900/30 bg-teal-50/70 dark:bg-teal-950/20 text-teal-950 dark:text-teal-100 shadow-xs space-y-2 backdrop-blur-xs transition-colors duration-200">
-        <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-teal-200/60 dark:bg-teal-900/50 border border-teal-300/50 text-[11px] font-bold tracking-wide uppercase text-teal-800 dark:text-teal-200">
-          <Sparkles className="w-3.5 h-3.5" />
-          Sanctuary Journal
+      {/* Header Banner - Green Theme (Layout Matched with JarPage) */}
+      <div className="p-6 rounded-3xl border border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/20 text-slate-800 dark:text-slate-100 shadow-xs transition-colors duration-200">
+        <div className="flex items-center gap-4 sm:gap-5">
+          <img
+            src="/logo_and_icons/fold_icon.webp"
+            alt="Fold"
+            className="w-16 h-16 sm:w-20 sm:h-20 object-contain shrink-0 drop-shadow-md select-none"
+            draggable={false}
+          />
+          <div className="space-y-1.5 min-w-0 flex-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-300/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold tracking-wide uppercase">
+              Sanctuary Journal
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+              {draftId ? 'Edit Draft Thought' : 'Fold a Quiet Thought'}
+            </h1>
+            <p className="text-xs font-medium max-w-2xl leading-relaxed text-slate-600 dark:text-slate-300">
+              Capture raw reflections in your personal space. Keep them tucked in your jar, seal them with a timer, or release them softly into the open sky.
+            </p>
+          </div>
         </div>
-        <h1 className="text-2xl font-bold tracking-tight text-teal-950 dark:text-teal-50">
-          {draftId ? 'Edit your draft thought' : 'Fold a quiet thought'}
-        </h1>
-        <p className="text-xs font-medium max-w-2xl leading-relaxed opacity-90 text-teal-800/80 dark:text-teal-200/80">
-          Capture raw reflections in your personal space. Keep them tucked in your jar, seal them with a timer, or release them softly into the open sky.
-        </p>
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
+        {/* Main Editor Section */}
         <div className="lg:col-span-8">
           <form
             onSubmit={handleFormSubmit}
-            className={`rounded-3xl border border-teal-100 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/90 text-stone-800 dark:text-stone-100 shadow-lg p-6 sm:p-8 flex flex-col justify-between space-y-6 transition-all duration-500 overflow-hidden ${
+            className={`rounded-3xl border p-6 sm:p-7 shadow-xs flex flex-col justify-between space-y-6 transition-all duration-500 overflow-hidden ${
               animType === 'fold' ? 'scale-90 opacity-30 rotate-1 blur-xs' : ''
             } ${animType === 'draft' ? 'animate-pulse opacity-70' : ''} ${
               animType === 'seal' ? 'scale-95 brightness-90 animate-bounce' : ''
             }`}
+            style={{ 
+              backgroundColor: 'var(--card-bg)', 
+              borderColor: 'var(--card-border)', 
+              color: 'var(--text-main)' 
+            }}
           >
             <div className={`space-y-4 transition-all duration-500 ${animType === 'fly' ? '-translate-y-12 opacity-0 blur-xs' : ''}`}>
+              
+              {/* Title Field */}
               <div className="relative flex items-center">
                 <input
                   type="text"
@@ -274,22 +295,23 @@ function FoldContent() {
                   }}
                   disabled={isAnimating}
                   maxLength={MAX_TITLE_LENGTH}
-                  className="w-full text-lg font-semibold placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none bg-transparent border-b pb-3 pr-16 border-teal-100 dark:border-zinc-800 focus:border-teal-300 dark:focus:border-teal-600 transition-colors"
+                  className="w-full text-base font-bold placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none bg-transparent border-b pb-3 pr-16 border-slate-200 dark:border-slate-800 focus:border-emerald-500 dark:focus:border-emerald-400 transition-colors"
                 />
                 <span className={`absolute right-0 bottom-3 text-[11px] font-mono transition-colors ${
                   title.length >= MAX_TITLE_LENGTH 
                     ? 'text-rose-500 font-bold' 
                     : title.length >= MAX_TITLE_LENGTH * 0.9 
                     ? 'text-amber-500' 
-                    : 'text-stone-400 dark:text-stone-500'
+                    : 'text-slate-400 dark:text-slate-500'
                 }`}>
                   {title.length} / {MAX_TITLE_LENGTH}
                 </span>
               </div>
 
+              {/* Textarea Field */}
               <div className="relative">
                 <textarea
-                  rows={14}
+                  rows={13}
                   placeholder="Write your unfiltered thoughts freely here..."
                   value={content}
                   onChange={(e) => {
@@ -297,18 +319,20 @@ function FoldContent() {
                     if (errorMessage) setErrorMessage('');
                   }}
                   disabled={isAnimating}
-                  className="w-full text-sm placeholder:text-stone-400 dark:placeholder:text-stone-500 focus:outline-none bg-transparent resize-none leading-relaxed font-normal min-h-[280px]"
+                  className="w-full text-xs sm:text-sm font-serif placeholder:font-sans placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none bg-transparent resize-none leading-relaxed min-h-[260px]"
                 />
                 <div className={`flex justify-end text-[11px] mt-1 font-mono transition-colors ${
-                  wordCount > MAX_WORDS ? 'text-rose-500 font-bold' : wordCount >= MAX_WORDS * 0.9 ? 'text-amber-500' : 'text-stone-400 dark:text-stone-500'
+                  wordCount > MAX_WORDS ? 'text-rose-500 font-bold' : wordCount >= MAX_WORDS * 0.9 ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500'
                 }`}>
                   {wordCount} / {MAX_WORDS} words
                 </div>
               </div>
             </div>
 
-            <div className="pt-4 border-t border-teal-100 dark:border-zinc-800 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
+            {/* Bottom Actions Bar */}
+            <div className="pt-4 border-t border-slate-200/60 dark:border-slate-800/80 flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3">
               
+              {/* Visibility Selector Dropdown */}
               <div className="relative" ref={dropdownRef}>
                 <button
                   type="button"
@@ -316,19 +340,19 @@ function FoldContent() {
                   disabled={isAnimating}
                   aria-expanded={isVisibilityOpen}
                   aria-haspopup="menu"
-                  className={`flex items-center gap-2 px-4 py-2.5 rounded-xl border text-xs font-semibold transition-all duration-150 active:scale-95 cursor-pointer ${
+                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-semibold transition-all duration-150 active:scale-95 cursor-pointer ${
                     visibility === 'anonymous_public'
-                      ? 'bg-sky-100/80 dark:bg-sky-950/40 text-sky-800 dark:text-sky-200 border-sky-200 dark:border-sky-800/60'
-                      : 'bg-purple-100/80 dark:bg-purple-950/40 text-purple-800 dark:text-purple-200 border-purple-200 dark:border-purple-800/60'
+                      ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-300/50'
+                      : 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-300/50'
                   }`}
                 >
                   {visibility === 'anonymous_public' ? (
                     <>
-                      <Eye className="w-3.5 h-3.5 shrink-0 text-sky-600 dark:text-sky-300" /> Anonymous Public (Sky)
+                      <Eye className="w-3.5 h-3.5 shrink-0 text-sky-600 dark:text-sky-400" /> Anonymous Public (Sky)
                     </>
                   ) : (
                     <>
-                      <Lock className="w-3.5 h-3.5 shrink-0 text-purple-600 dark:text-purple-300" /> Private (Jar)
+                      <Lock className="w-3.5 h-3.5 shrink-0 text-purple-600 dark:text-purple-400" /> Private (Jar)
                     </>
                   )}
                   <ChevronDown className="w-3.5 h-3.5 opacity-60 ml-1" />
@@ -337,7 +361,7 @@ function FoldContent() {
                 {isVisibilityOpen && (
                   <div 
                     role="menu"
-                    className="absolute left-0 bottom-full mb-2 w-64 border border-teal-100 dark:border-zinc-800 bg-white/95 dark:bg-zinc-900/95 backdrop-blur-lg rounded-2xl shadow-xl py-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-150"
+                    className="absolute left-0 bottom-full mb-2 w-64 border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-xl py-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-150"
                   >
                     <button
                       type="button"
@@ -350,8 +374,8 @@ function FoldContent() {
                     >
                       <Lock className="w-4 h-4 text-purple-500 shrink-0" />
                       <div>
-                        <div className="font-semibold text-stone-800 dark:text-stone-100">Private (Jar)</div>
-                        <div className="text-[10px] text-stone-500 dark:text-stone-400">Keep safely inside your personal jar</div>
+                        <div className="font-semibold text-slate-800 dark:text-slate-100">Private (Jar)</div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400">Keep safely inside your personal jar</div>
                       </div>
                     </button>
                     <button
@@ -361,25 +385,26 @@ function FoldContent() {
                         setVisibility('anonymous_public');
                         setIsVisibilityOpen(false);
                       }}
-                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-colors text-left border-t border-teal-100 dark:border-zinc-800 cursor-pointer"
+                      className="w-full flex items-center gap-3 px-4 py-2.5 hover:bg-sky-50 dark:hover:bg-sky-950/40 transition-colors text-left border-t border-slate-100 dark:border-slate-800 cursor-pointer"
                     >
                       <Eye className="w-4 h-4 text-sky-500 shrink-0" />
                       <div>
-                        <div className="font-semibold text-stone-800 dark:text-stone-100">Anonymous Public (Sky)</div>
-                        <div className="text-[10px] text-stone-500 dark:text-stone-400">Release as a paper plane into the sky</div>
+                        <div className="font-semibold text-slate-800 dark:text-slate-100">Anonymous Public (Sky)</div>
+                        <div className="text-[10px] text-slate-500 dark:text-slate-400">Release as a paper plane into the sky</div>
                       </div>
                     </button>
                   </div>
                 )}
               </div>
 
+              {/* Action Buttons */}
               <div className="flex items-center gap-2 flex-wrap">
                 {visibility !== 'anonymous_public' && (
                   <button
                     type="button"
                     onClick={handleSaveAsDraft}
                     disabled={isAnimating}
-                    className="px-3.5 py-2.5 rounded-xl border border-stone-200 dark:border-zinc-700 bg-stone-50/50 dark:bg-zinc-800/50 text-stone-700 dark:text-stone-200 text-xs font-semibold hover:bg-stone-100 dark:hover:bg-zinc-800 transition-all duration-150 flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700/80 transition-all duration-150 flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-2xs"
                   >
                     <FileText className={`w-3.5 h-3.5 opacity-80 ${animType === 'draft' ? 'animate-spin' : ''}`} />
                     <span>{animType === 'draft' ? 'Saving...' : 'Save Draft'}</span>
@@ -406,25 +431,26 @@ function FoldContent() {
                       setIsSealModalOpen(true);
                     }}
                     disabled={isAnimating}
-                    className="px-3.5 py-2.5 rounded-xl border border-amber-200 dark:border-amber-900/50 bg-amber-100/70 dark:bg-amber-950/40 text-amber-800 dark:text-amber-200 text-xs font-semibold hover:bg-amber-200/60 transition-all duration-150 flex items-center gap-1.5 active:scale-95 cursor-pointer"
+                    className="px-3.5 py-2 rounded-xl border border-amber-300/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs font-semibold hover:bg-amber-500/20 transition-all duration-150 flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-2xs"
                   >
                     <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                     <span>Seal Letter</span>
                   </button>
                 )}
 
+                {/* Primary Green Action Button */}
                 <button
                   type="submit"
                   disabled={isAnimating}
-                  className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-rose-400 to-pink-400 hover:from-rose-500 hover:to-pink-500 text-white text-xs font-bold shadow-sm hover:scale-[1.02] active:scale-95 transition-all duration-150 flex items-center justify-center gap-2 overflow-hidden group cursor-pointer"
+                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs active:scale-95 transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {visibility === 'anonymous_public' ? (
                     <Send className={`w-3.5 h-3.5 transition-transform duration-500 ${
-                      animType === 'fly' ? 'translate-x-12 -translate-y-12 scale-125 opacity-0' : 'group-hover:translate-x-0.5 group-hover:-translate-y-0.5'
+                      animType === 'fly' ? 'translate-x-12 -translate-y-12 scale-125 opacity-0' : ''
                     }`} />
                   ) : (
                     <Archive className={`w-3.5 h-3.5 transition-transform duration-500 ${
-                      animType === 'fold' ? 'scale-0 rotate-180 opacity-0' : 'group-hover:scale-110'
+                      animType === 'fold' ? 'scale-0 rotate-180 opacity-0' : ''
                     }`} />
                   )}
                   <span>
@@ -440,28 +466,38 @@ function FoldContent() {
           </form>
         </div>
 
-        <div className="lg:col-span-4 space-y-5">
+        {/* Side Panels - Layout matched with JarPage Sidebar */}
+        <div className="lg:col-span-4 space-y-6">
 
-          <div className="rounded-3xl border border-teal-100 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/90 shadow-md p-5 space-y-3.5">
-            <div className="flex items-center justify-between">
-              <label className="text-xs font-bold tracking-wider uppercase text-stone-500 dark:text-stone-400">
-                CURRENT MOOD / VIBE
-              </label>
-              <span className="text-[10px] font-medium text-stone-400 dark:text-stone-500">Optional</span>
+          {/* Current Mood Box */}
+          <div 
+            className="rounded-3xl border p-5 space-y-4 shadow-xs transition-colors duration-200"
+            style={{ 
+              backgroundColor: 'var(--card-bg)', 
+              borderColor: 'var(--card-border)', 
+              color: 'var(--text-main)' 
+            }}
+          >
+            <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--card-border)' }}>
+              <div className="flex items-center gap-2">
+                <Smile className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                <h2 className="text-xs font-bold tracking-wider uppercase opacity-80">Current Mood / Vibe</h2>
+              </div>
+              <span className="text-[10px] font-medium opacity-50">Optional</span>
             </div>
             
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-2 pt-1">
               <button
                 type="button"
                 onClick={() => setMood('neutral')}
-                className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-150 border active:scale-95 cursor-pointer ${
+                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 border active:scale-95 cursor-pointer ${
                   mood === 'neutral' 
-                    ? 'bg-slate-200 dark:bg-slate-700 text-slate-800 dark:text-slate-100 border-slate-300 dark:border-slate-600 shadow-xs' 
-                    : 'bg-stone-100/60 dark:bg-stone-800/40 text-stone-600 dark:text-stone-300 border-stone-200 dark:border-stone-800 hover:bg-stone-200/50'
+                    ? 'bg-slate-700 text-white border-slate-700 shadow-2xs' 
+                    : 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-300/50 hover:bg-slate-500/20'
                 }`}
               >
-                <Sparkles className="w-3.5 h-3.5 text-slate-500 dark:text-slate-300" />
-                <span>Neutral / None</span>
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>Neutral</span>
               </button>
 
               {MOODS.map((m) => {
@@ -472,7 +508,7 @@ function FoldContent() {
                     key={m.id}
                     type="button"
                     onClick={() => setMood(m.id)}
-                    className={`flex items-center gap-2 px-3.5 py-2 rounded-xl text-xs font-semibold transition-all duration-150 border active:scale-95 cursor-pointer ${
+                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 border active:scale-95 cursor-pointer ${
                       isSelected ? m.activeBg : m.color
                     }`}
                   >
@@ -484,39 +520,46 @@ function FoldContent() {
             </div>
           </div>
 
-          <div className="rounded-3xl border border-sky-100 dark:border-zinc-800 bg-white/80 dark:bg-zinc-900/90 shadow-md p-5 space-y-4">
-            <div className="flex items-center justify-between border-b border-sky-100 dark:border-zinc-800 pb-3">
-              <h2 className="text-xs font-bold tracking-wider uppercase text-sky-950 dark:text-sky-100">ASK MIMI</h2>
-              <span className="text-[10px] bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200 px-2.5 py-0.5 rounded-full font-bold">
+          {/* Ask Mimi Box */}
+          <div 
+            className="rounded-3xl border p-5 space-y-4 shadow-xs transition-colors duration-200"
+            style={{ 
+              backgroundColor: 'var(--card-bg)', 
+              borderColor: 'var(--card-border)', 
+              color: 'var(--text-main)' 
+            }}
+          >
+            <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--card-border)' }}>
+              <h2 className="text-xs font-bold tracking-wider uppercase opacity-80">Ask Mimi</h2>
+              <span className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40 px-2.5 py-0.5 rounded-full font-bold">
                 Companion
               </span>
             </div>
 
-            {/* Featured Mimi agent display */}
-            <div className="flex justify-center">
+            <div className="flex justify-center py-2">
               <img
-                src="/mimi_agent.png"
-                alt="Mimi, your companion agent"
-                className="w-40 h-40 sm:w-48 sm:h-48 object-contain drop-shadow-lg select-none"
+                src="/mimi/mimi_agent.webp"
+                alt="Mimi companion"
+                className="w-36 h-36 sm:w-40 sm:h-40 object-contain drop-shadow-md select-none"
                 draggable={false}
               />
             </div>
             
-            <div className="p-4 rounded-2xl bg-sky-50/60 dark:bg-sky-950/20 border border-sky-100 dark:border-sky-900/30 text-xs space-y-2">
-              <p className="font-bold text-sky-900 dark:text-sky-200">Mimi&apos;s Companion Space</p>
-              <p className="text-[11px] leading-relaxed text-sky-800/80 dark:text-sky-300/80">
+            <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40 text-xs space-y-1.5">
+              <p className="font-bold text-emerald-900 dark:text-emerald-200">Mimi&apos;s Companion Space</p>
+              <p className="text-[11px] leading-relaxed text-emerald-800/80 dark:text-emerald-300/80">
                 Dedicated slot for your custom Mimi agent appearance, interactive companion chat widget, or reflection prompts.
               </p>
             </div>
 
-            <div className="p-3.5 rounded-2xl bg-amber-50/80 dark:bg-amber-950/20 border border-amber-200/70 dark:border-amber-900/30 text-xs space-y-1.5">
+            <div className="p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 text-xs space-y-1.5">
               <div className="flex items-center gap-1.5">
                 <Lightbulb className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-                <span className="text-[9px] font-extrabold uppercase tracking-wider text-amber-900 dark:text-amber-200 bg-amber-200/60 dark:bg-amber-900/50 px-2 py-0.5 rounded-md inline-block">
-                  REFLECTION PROMPT
+                <span className="text-[9px] font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md inline-block">
+                  Reflection Prompt
                 </span>
               </div>
-              <p className="text-[11px] italic font-medium leading-relaxed text-amber-950 dark:text-amber-200/90 opacity-90">
+              <p className="text-[11px] italic font-serif leading-relaxed text-slate-700 dark:text-slate-300">
                 &quot;What is one small thing that made you pause and feel grateful today?&quot;
               </p>
             </div>
@@ -526,6 +569,7 @@ function FoldContent() {
 
       </div>
 
+      {/* Date Picker Modal */}
       <SealDatePicker
         isOpen={isSealModalOpen}
         onClose={() => setIsSealModalOpen(false)}

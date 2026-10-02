@@ -29,7 +29,7 @@
   --card-border: #e7e5e4;
 
   /* Universal page background (Dashboard + Auth) */
-  --bg-general-image: url('/general_bg/daybg.png');
+  --bg-general-image: url('/general_bg/daybg.webp');
 
   --banner-bg: #fef3c7;
   --banner-border: #fde68a;
@@ -54,7 +54,7 @@
   --card-bg: #212536;
   --card-border: #323850;
 
-  --bg-general-image: url('/general_bg/nightbg.png');
+  --bg-general-image: url('/general_bg/nightbg.webp');
 
   --banner-bg: #2d2619;
   --banner-border: #4a3b1f;

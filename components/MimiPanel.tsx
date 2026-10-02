@@ -24,7 +24,7 @@ export default function MimiPanel({
       {/* Featured Mimi agent display */}
       <div className="flex justify-center">
         <img
-          src="/mimi_agent.png"
+          src="/mimi/mimi_agent.webp"
           alt="Mimi, your companion agent"
           className="w-40 h-40 sm:w-48 sm:h-48 object-contain drop-shadow-lg select-none"
           draggable={false}

@@ -53,7 +53,7 @@ export default function LoginPage() {
         {/* Logo / Icon Header */}
         <div className="flex justify-center">
           <img
-            src="/logo.png"
+            src="/logo_and_icons/logo.webp"
             alt="Windup logo"
             className="w-16 h-16 rounded-2xl object-contain shadow-sm"
           />

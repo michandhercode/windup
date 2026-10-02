@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Calendar, Heart, Trash2, Inbox, Cloud, Feather, BookOpen, Clock, CloudRain, HeartHandshake, BookmarkCheck, AlertCircle } from 'lucide-react';
+import { Calendar, Heart, Trash2, Feather, BookOpen, Clock, CloudRain, HeartHandshake, BookmarkCheck, AlertCircle } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 
 const getMoodConfig = (moodString: string) => {
@@ -94,39 +94,47 @@ export default function SentPlanesPage() {
   return (
     <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 min-h-screen space-y-6">
       
-      <div className="p-6 rounded-3xl border border-sky-200/70 dark:border-sky-800/50 bg-gradient-to-r from-sky-100/90 via-sky-50/70 to-indigo-50/80 dark:from-slate-900 dark:via-sky-950/40 dark:to-indigo-950/50 text-slate-800 dark:text-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
-        <div className="space-y-1.5">
-          <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-400/30 text-sky-800 dark:text-sky-200 text-[11px] font-bold tracking-wide uppercase">
-            <img src="/my_plane.png" alt="" className="w-4 h-4 object-contain" />
-            Your Public Echoes
+      {/* Header Banner - Sky Theme (Matched exact structure with FoldPage) */}
+      <div className="p-6 rounded-3xl border border-sky-200/60 dark:border-sky-900/40 bg-sky-50/40 dark:bg-sky-950/20 text-slate-800 dark:text-slate-100 shadow-xs transition-colors duration-200 flex flex-wrap items-center justify-between gap-5">
+        <div className="flex items-center gap-4 sm:gap-5 min-w-0 flex-1">
+          <img
+            src="/logo_and_icons/sentplanes_icon.webp"
+            alt="Sent Planes"
+            className="w-16 h-16 sm:w-20 sm:h-20 object-contain shrink-0 drop-shadow-md select-none"
+            draggable={false}
+          />
+          <div className="space-y-1.5 min-w-0 flex-1">
+            <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-sky-500/10 border border-sky-300/40 text-sky-700 dark:text-sky-300 text-[10px] font-bold tracking-wide uppercase">
+              Your Public Echoes
+            </div>
+            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+              Sent Planes
+            </h1>
+            <p className="text-xs font-medium max-w-2xl leading-relaxed text-slate-600 dark:text-slate-300">
+              A record of anonymous paper planes you have released into the sky. Softly resonating with strangers around the world.
+            </p>
           </div>
-          <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-100 flex items-center gap-2">
-            Sent Planes
-            <Cloud className="w-5 h-5 text-sky-400" />
-          </h1>
-          <p className="text-xs font-medium max-w-xl leading-relaxed text-slate-600 dark:text-slate-300">
-            A record of anonymous paper planes you have released into the sky. Softly resonating with strangers around the world.
-          </p>
         </div>
 
-        <div className="flex items-center gap-3">
-          <div className="px-4 py-2.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-sky-200/60 dark:border-slate-800 backdrop-blur-xs flex items-center gap-3 shadow-xs">
-            <div className="p-2 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
-              <img src="/my_plane.png" alt="" className="w-5 h-5 object-contain" />
+        {/* Header Stats Counter */}
+        <div className="flex items-center gap-3 shrink-0">
+          <div className="px-4 py-2 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-sky-200/60 dark:border-slate-800 backdrop-blur-xs flex items-center gap-3 shadow-xs">
+            <div className="p-1.5 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
+              <img src="/logo_and_icons/my_plane.webp" alt="" className="w-4 h-4 object-contain" />
             </div>
             <div>
               <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Total Sent</div>
-              <div className="text-base font-extrabold text-slate-800 dark:text-slate-100">{sentPlanes.length}</div>
+              <div className="text-sm font-extrabold text-slate-800 dark:text-slate-100">{sentPlanes.length}</div>
             </div>
           </div>
 
-          <div className="px-4 py-2.5 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-sky-200/60 dark:border-slate-800 backdrop-blur-xs flex items-center gap-3 shadow-xs">
-            <div className="p-2 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
+          <div className="px-4 py-2 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-sky-200/60 dark:border-slate-800 backdrop-blur-xs flex items-center gap-3 shadow-xs">
+            <div className="p-1.5 rounded-xl bg-rose-500/10 text-rose-600 dark:text-rose-400">
               <Heart className="w-4 h-4" />
             </div>
             <div>
               <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Resonated</div>
-              <div className="text-base font-extrabold text-slate-800 dark:text-slate-100">{totalResonated}</div>
+              <div className="text-sm font-extrabold text-slate-800 dark:text-slate-100">{totalResonated}</div>
             </div>
           </div>
         </div>
@@ -196,9 +204,12 @@ export default function SentPlanesPage() {
         </div>
       ) : (
         <div className="rounded-3xl border border-dashed border-sky-200 dark:border-slate-800 p-12 text-center flex flex-col items-center justify-center space-y-3 bg-sky-50/30 dark:bg-slate-900/30">
-          <div className="p-4 rounded-full bg-sky-500/10 text-sky-500">
-            <Inbox className="w-8 h-8" />
-          </div>
+          <img
+            src="/logo_and_icons/plane_empty.webp"
+            alt=""
+            className="w-20 h-20 object-contain select-none opacity-90 transition-transform duration-300 hover:scale-110 hover:-translate-y-1"
+            draggable={false}
+          />
           <div className="space-y-1">
             <h3 className="text-sm font-bold text-slate-700 dark:text-slate-200">No sent paper planes yet</h3>
             <p className="text-xs text-slate-500 dark:text-slate-400 max-w-sm">
@@ -208,10 +219,10 @@ export default function SentPlanesPage() {
         </div>
       )}
 
+      {/* Selected Plane Modal - Sky Blue Theme */}
       {selectedPlane && selectedCfg && SelectedMoodIcon && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm animate-in fade-in duration-200">
-          {/* Pinalawak ang max-width to max-w-4xl at pinalaki ang padding */}
-          <div className="relative w-full max-w-4xl max-h-[85vh] flex flex-col p-8 sm:p-10 rounded-3xl bg-amber-50/95 dark:bg-slate-900 border border-amber-200 dark:border-slate-800 shadow-2xl space-y-5">
+          <div className="relative w-full max-w-4xl max-h-[85vh] flex flex-col p-8 sm:p-10 rounded-3xl bg-sky-50/95 dark:bg-slate-900 border border-sky-200/80 dark:border-slate-800 shadow-2xl space-y-5">
             
             <div className="flex items-center justify-between text-xs text-slate-400 shrink-0">
               <span className="font-mono flex items-center gap-1">
@@ -227,7 +238,7 @@ export default function SentPlanesPage() {
               {selectedPlane.title}
             </h2>
             
-            <div className="overflow-y-auto max-h-[50vh] pr-2 border-t border-b border-amber-200/50 py-5 font-serif custom-scrollbar">
+            <div className="overflow-y-auto max-h-[50vh] pr-2 border-t border-b border-sky-200/60 dark:border-slate-800/80 py-5 font-serif custom-scrollbar">
               <p className="text-sm sm:text-base leading-relaxed text-slate-700 dark:text-slate-200 whitespace-pre-wrap">
                 "{selectedPlane.content}"
               </p>
@@ -242,14 +253,14 @@ export default function SentPlanesPage() {
               <div className="flex items-center gap-2">
                 <button
                   onClick={(e) => handleKeepInJar(selectedPlane.id, e)}
-                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-100 text-sky-700 dark:bg-sky-950 dark:text-sky-300 text-xs font-semibold hover:bg-sky-200 transition-colors"
+                  className="flex items-center gap-1.5 px-4 py-2 rounded-xl bg-sky-200/70 text-sky-800 dark:bg-sky-950 dark:text-sky-300 text-xs font-semibold hover:bg-sky-300/70 transition-colors cursor-pointer"
                 >
                   <BookmarkCheck className="w-4 h-4" />
                   Keep in Jar
                 </button>
                 <button
                   onClick={() => setSelectedPlane(null)}
-                  className="px-6 py-2 rounded-xl bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 text-xs font-semibold shadow-sm hover:opacity-90 transition-opacity"
+                  className="px-6 py-2 rounded-xl bg-slate-800 text-white dark:bg-slate-100 dark:text-slate-900 text-xs font-semibold shadow-sm hover:opacity-90 transition-opacity cursor-pointer"
                 >
                   Close
                 </button>
@@ -260,11 +271,12 @@ export default function SentPlanesPage() {
         </div>
       )}
 
+      {/* Confirmation Dialog - Sky Blue Accent */}
       {confirmConfig.isOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs animate-in fade-in duration-150">
           <div className="w-full max-w-sm rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 space-y-4">
             <div className="flex items-center gap-3">
-              <div className="p-3 rounded-2xl bg-amber-500/10 text-amber-600 dark:text-amber-400">
+              <div className="p-3 rounded-2xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
                 <AlertCircle className="w-6 h-6" />
               </div>
               <div>
@@ -280,13 +292,13 @@ export default function SentPlanesPage() {
             <div className="flex items-center justify-end gap-2 pt-2">
               <button
                 onClick={() => setConfirmConfig((prev) => ({ ...prev, isOpen: false }))}
-                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors"
+                className="px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-300 text-xs font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors cursor-pointer"
               >
                 Cancel
               </button>
               <button
                 onClick={confirmConfig.onConfirm}
-                className="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 transition-colors shadow-sm"
+                className="px-4 py-2 rounded-xl bg-sky-600 text-white text-xs font-semibold hover:bg-sky-700 transition-colors shadow-sm cursor-pointer"
               >
                 Confirm
               </button>
