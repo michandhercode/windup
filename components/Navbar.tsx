@@ -4,7 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { LogOut, Moon, Sun, LogIn, Eye } from 'lucide-react';
+import { LogOut, Moon, Sun, LogIn, Eye, Feather } from 'lucide-react';
 
 export default function Navbar() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
@@ -18,7 +18,6 @@ export default function Navbar() {
 
   const [displayName, setDisplayName] = useState('Anonymous Scribe');
   const [email, setEmail] = useState('scribe@windup.app');
-  const [initials, setInitials] = useState('AS');
 
   // Load user data or guest status
   const loadUserData = () => {
@@ -30,21 +29,11 @@ export default function Navbar() {
       setIsGuest(true);
       setDisplayName('Guest Traveler');
       setEmail('Browsing mode');
-      setInitials('G');
     } else {
       setIsGuest(false);
       if (savedName) {
-        const trimmed = savedName.trim();
-        setDisplayName(trimmed);
-        
-        const words = trimmed.split(' ');
-        if (words.length >= 2) {
-          setInitials((words[0][0] + words[1][0]).toUpperCase());
-        } else if (words.length === 1 && words[0].length > 0) {
-          setInitials(words[0].substring(0, 2).toUpperCase());
-        }
+        setDisplayName(savedName.trim());
       }
-
       if (savedEmail) {
         setEmail(savedEmail);
       }
@@ -87,7 +76,7 @@ export default function Navbar() {
     localStorage.removeItem('windup_is_guest');
     localStorage.removeItem('windup_user_email');
     localStorage.removeItem('windup_display_name');
-    router.push('/login');
+    router.push('/');
   };
 
   const allNavLinks = [
@@ -101,6 +90,9 @@ export default function Navbar() {
   const navLinks = isGuest
     ? [{ name: 'The Sky', href: '/sky' }]
     : allNavLinks;
+
+  // Kunin ang unang salita sa pangalan para sa bookmark nametag
+  const firstName = displayName.split(' ')[0] || 'Scribe';
 
   return (
     <header className="w-full border-b border-rose-100/70 dark:border-slate-800 bg-[#fbf9f5]/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-40">
@@ -164,23 +156,37 @@ export default function Navbar() {
             </div>
           ) : (
             <div className="relative" ref={dropdownRef}>
+              {/* Paper Bookmark Nametag */}
               <button
                 type="button"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="w-9 h-9 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 font-bold text-xs flex items-center justify-center hover:ring-2 hover:ring-rose-300 transition-all focus:outline-hidden cursor-pointer shadow-xs border border-rose-200/80 dark:border-rose-900/50"
+                className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-[#fdfbf7] dark:bg-slate-800 border-2 border-rose-200/80 dark:border-slate-700 shadow-[2px_2px_0px_rgba(244,63,94,0.18)] hover:shadow-[3px_3px_0px_rgba(244,63,94,0.22)] hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer shrink-0"
+                title="Profile Menu"
               >
-                {initials}
+                {/* Pluma / Feather Icon */}
+                <div className="w-6 h-6 rounded-lg bg-rose-100/80 dark:bg-rose-950/60 flex items-center justify-center text-rose-500 dark:text-rose-300 shrink-0 border border-rose-200/50 dark:border-rose-900/50">
+                  <Feather className="w-3.5 h-3.5" />
+                </div>
+                
+                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 max-w-[100px] truncate">
+                  {firstName}
+                </span>
               </button>
 
               {isDropdownOpen && (
                 <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 border border-rose-100 dark:border-slate-800 shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
-                  <div className="px-4 py-2.5 border-b border-rose-50 dark:border-slate-800">
-                    <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
-                      {displayName}
-                    </p>
-                    <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
-                      {email}
-                    </p>
+                  <div className="px-4 py-2.5 border-b border-rose-50 dark:border-slate-800 flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-xl bg-rose-100/80 dark:bg-rose-950/60 flex items-center justify-center text-rose-500 dark:text-rose-300 shrink-0 border border-rose-200/50 dark:border-rose-900/50">
+                      <Feather className="w-4 h-4" />
+                    </div>
+                    <div className="overflow-hidden">
+                      <p className="text-xs font-bold text-slate-800 dark:text-slate-100 truncate">
+                        {displayName}
+                      </p>
+                      <p className="text-[11px] text-slate-500 dark:text-slate-400 truncate">
+                        {email}
+                      </p>
+                    </div>
                   </div>
 
                   <div className="pt-1">
