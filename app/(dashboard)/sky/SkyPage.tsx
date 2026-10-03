@@ -3,10 +3,9 @@
 import { useState, useMemo, useSyncExternalStore } from 'react';
 import { Heart, CheckCircle2, FoldHorizontal, UserCheck } from 'lucide-react';
 import { useLetters } from '@/app/providers';
-import { ALL_MOCK_POOL, isPublicPlane } from '@/lib/sky-planes';
+import { ALL_MOCK_POOL, isPublicPlane, getPlaneLikes } from '@/lib/sky-planes';
 import ViewLetterModal, { LetterModalAction } from '@/components/ViewLetterModal';
 import { formatLetterDate } from '@/lib/format';
-import type { Letter } from '@/types/letter';
 import { useIsClient, useLocalStorageItem, setLocalStorageItem } from '@/lib/hooks/useLocalStorage';
 
 const PLANES_PER_CATCH = 7;
@@ -29,6 +28,8 @@ interface PlanePlacement {
 }
 
 const READ_PLANES_KEY = 'sky_read_planes';
+/** Ids of planes the current reader has liked (per-reader flag, so a like can be toggled off). */
+const LIKED_PLANES_KEY = 'sky_liked_planes';
 const COMPACT_QUERY = '(max-width: 639px)';
 
 /** Small deterministic PRNG (mulberry32) so the sky is a pure function of its seed. */
@@ -90,9 +91,9 @@ const subscribeCompact = (onChange: () => void) => {
 };
 
 export default function SkyPage() {
-  const { letters } = useLetters();
-  const [selectedPlane, setSelectedPlane] = useState<SkyPlane | null>(null);
-  const [liked, setLiked] = useState(false);
+  const { letters, updateLetter } = useLetters();
+  // Store only the id; the plane itself is derived from live data so counts never go stale.
+  const [selectedPlaneId, setSelectedPlaneId] = useState<string | null>(null);
   // The whole sky is derived from this seed; "Catch More Planes" just rolls a new one.
   const [seed, setSeed] = useState(() => Math.floor(Math.random() * 2 ** 31));
 
@@ -109,18 +110,29 @@ export default function SkyPage() {
   const rawReadIds = useLocalStorageItem(READ_PLANES_KEY);
   const readPlaneIds = useMemo(() => parseIds(rawReadIds), [rawReadIds]);
 
+  const rawLikedIds = useLocalStorageItem(LIKED_PLANES_KEY);
+  const likedIds = useMemo(() => parseIds(rawLikedIds), [rawLikedIds]);
+
   const masterPool: SkyPlane[] = useMemo(() => {
     const userPlanes: SkyPlane[] = letters.filter(isPublicPlane).map((l) => ({
       id: l.id,
       title: l.title || 'Untitled Thought',
       content: l.content,
       mood: l.mood || 'peaceful',
-      likes: (l as Letter & { likes?: number }).likes || 5,
+      likes: getPlaneLikes(l), // your own planes: the count stored on the letter
       createdAt: l.createdAt,
       isUserOwner: true,
     }));
-    return [...userPlanes, ...ALL_MOCK_POOL];
-  }, [letters]);
+    // Sample planes have no stored letter, so a reader's like is layered on top of the base count.
+    const samplePlanes: SkyPlane[] = ALL_MOCK_POOL.map((p) => ({
+      ...p,
+      likes: p.likes + (likedIds.includes(p.id) ? 1 : 0),
+    }));
+    return [...userPlanes, ...samplePlanes];
+  }, [letters, likedIds]);
+
+  const selectedPlane = selectedPlaneId ? masterPool.find((p) => p.id === selectedPlaneId) ?? null : null;
+  const isLiked = !!selectedPlane && likedIds.includes(selectedPlane.id);
 
   const totalPlanesCount = masterPool.length;
   
@@ -148,9 +160,19 @@ export default function SkyPage() {
     [batch.length, isCompact, seed]
   );
 
+  const handleToggleLike = (plane: SkyPlane) => {
+    const wasLiked = likedIds.includes(plane.id);
+    const nextLikedIds = wasLiked ? likedIds.filter((id) => id !== plane.id) : [...likedIds, plane.id];
+    setLocalStorageItem(LIKED_PLANES_KEY, JSON.stringify(nextLikedIds));
+
+    // Your own plane: write the new count onto the letter so Sent Planes shows the exact same number.
+    if (plane.isUserOwner) {
+      updateLetter(plane.id, { likes: Math.max(0, plane.likes + (wasLiked ? -1 : 1)) });
+    }
+  };
+
   const handleOpenPlane = (plane: SkyPlane) => {
-    setSelectedPlane(plane);
-    setLiked(false);
+    setSelectedPlaneId(plane.id);
 
     if (!readPlaneIds.includes(plane.id)) {
       setLocalStorageItem(READ_PLANES_KEY, JSON.stringify([...readPlaneIds, plane.id]));
@@ -310,7 +332,7 @@ export default function SkyPage() {
             dateLabel: formatLetterDate(selectedPlane.createdAt),
           }
         }
-        onClose={() => setSelectedPlane(null)}
+        onClose={() => setSelectedPlaneId(null)}
         // "Refold Plane" already returns the plane to the sky, so no extra Close button
         showCloseButton={false}
         byline={
@@ -327,11 +349,11 @@ export default function SkyPage() {
             <>
               <LetterModalAction
                 tone="rose"
-                active={liked}
-                icon={<Heart className={`w-4 h-4 ${liked ? 'fill-current' : ''}`} />}
-                onClick={() => setLiked(!liked)}
+                active={isLiked}
+                icon={<Heart className={`w-4 h-4 ${isLiked ? 'fill-current' : ''}`} />}
+                onClick={() => handleToggleLike(selectedPlane)}
               >
-                Like ({selectedPlane.likes + (liked ? 1 : 0)})
+                Like ({selectedPlane.likes})
               </LetterModalAction>
               <LetterModalAction icon={<FoldHorizontal className="w-4 h-4" />} onClick={requestClose}>
                 Refold Plane

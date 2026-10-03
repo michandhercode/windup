@@ -13,6 +13,8 @@ export interface Letter {
   status: LetterStatus;
   visibility: Visibility;
   sealUntil?: string; // ISO date string
+  /** Likes / "Resonated" count for a released paper plane. Single source of truth for The Sky and Sent Planes. */
+  likes?: number;
   createdAt: string;
   updatedAt: string;
 }

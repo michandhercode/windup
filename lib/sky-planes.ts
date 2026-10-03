@@ -2,6 +2,15 @@ import type { Letter } from '@/types/letter';
 
 // Shared by The Sky page and the Landing page so both always show the same total.
 
+export const DEFAULT_PLANE_LIKES = 5;
+
+type PlaneLikeInput = Partial<Letter> & { likes?: number; resonated?: number };
+
+export const getPlaneLikes = (letter?: PlaneLikeInput | null): number => {
+  if (!letter) return DEFAULT_PLANE_LIKES;
+  return letter.likes ?? letter.resonated ?? DEFAULT_PLANE_LIKES;
+};
+
 /** A letter counts as a sent paper plane once it is public or released. */
 export const isPublicPlane = (l: Letter) =>
   l.visibility === 'anonymous_public' || l.status === 'released';

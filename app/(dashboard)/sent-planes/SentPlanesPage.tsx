@@ -6,13 +6,14 @@ import { useLetters } from '@/app/providers';
 import AlertModal, { type AlertVariant } from '@/components/AlertModal';
 import { getMoodConfig } from '@/lib/mood';
 import ViewLetterModal, { LetterModalAction, LetterModalChip } from '@/components/ViewLetterModal';
-import type { Letter } from '@/types/letter';
+import { getPlaneLikes } from '@/lib/sky-planes';
 
 interface SentPlane {
   id: string;
   title: string;
   content: string;
   mood: string;
+  /** Likes - the same stored `likes` count The Sky updates. */
   resonated: number;
   /** Already formatted, e.g. "Oct 2, 2026" */
   createdAt: string;
@@ -20,7 +21,7 @@ interface SentPlane {
 
 export default function SentPlanesPage() {
   const { letters, setLetters } = useLetters();
-  const [selectedPlane, setSelectedPlane] = useState<SentPlane | null>(null);
+  const [selectedPlaneId, setSelectedPlaneId] = useState<string | null>(null);
 
   const [confirmConfig, setConfirmConfig] = useState<{
     isOpen: boolean;
@@ -45,7 +46,7 @@ export default function SentPlanesPage() {
       title: l.title || 'Untitled Thought',
       content: l.content,
       mood: l.mood || 'peaceful',
-      resonated: (l as Letter & { resonated?: number; likes?: number }).resonated || (l as Letter & { likes?: number }).likes || 12,
+      resonated: getPlaneLikes(l),
       createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Sep 28, 2026',
     }));
 
@@ -61,7 +62,7 @@ export default function SentPlanesPage() {
         if (setLetters) {
           setLetters(letters.filter((l) => l.id !== id));
         }
-        if (selectedPlane?.id === id) setSelectedPlane(null);
+        if (selectedPlaneId === id) setSelectedPlaneId(null);
         setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
       },
     });
@@ -85,11 +86,14 @@ export default function SentPlanesPage() {
             )
           );
         }
-        if (selectedPlane?.id === id) setSelectedPlane(null);
+        if (selectedPlaneId === id) setSelectedPlaneId(null);
         setConfirmConfig((prev) => ({ ...prev, isOpen: false }));
       },
     });
   };
+
+  // Derived from live data so the modal never shows a stale count
+  const selectedPlane = selectedPlaneId ? sentPlanes.find((p) => p.id === selectedPlaneId) ?? null : null;
 
   const totalResonated = sentPlanes.reduce((acc, item) => acc + item.resonated, 0);
 
@@ -151,7 +155,7 @@ export default function SentPlanesPage() {
             return (
               <article
                 key={plane.id}
-                onClick={() => setSelectedPlane(plane)}
+                onClick={() => setSelectedPlaneId(plane.id)}
                 className={`group relative flex flex-col overflow-hidden rounded-2xl border shadow-xs transition-all duration-300 cursor-pointer hover:-translate-y-0.5 hover:shadow-md ${cfg.paperClass}`}
               >
                 <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1.5 ${cfg.accentClass}`} />
@@ -234,7 +238,7 @@ export default function SentPlanesPage() {
             dateLabel: selectedPlane.createdAt,
           }
         }
-        onClose={() => setSelectedPlane(null)}
+        onClose={() => setSelectedPlaneId(null)}
         actions={
           selectedPlane && (
             <>
