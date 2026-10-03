@@ -42,25 +42,25 @@ function FoldContent() {
   const [isAnimating, setIsAnimating] = useState(false);
   const [animType, setAnimType] = useState<'fly' | 'fold' | 'seal' | 'draft' | null>(null);
 
-  const loadedDraftIdRef = useRef<string | null>(null);
+  const [loadedDraftId, setLoadedDraftId] = useState<string | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const animTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const redirectTimeoutRef = useRef<NodeJS.Timeout | null>(null);
 
   const wordCount = content.trim() === '' ? 0 : content.trim().split(/\s+/).length;
 
-  useEffect(() => {
-    if (draftId && letters && letters.length > 0 && loadedDraftIdRef.current !== draftId) {
-      const existingDraft = letters.find((l) => l.id === draftId);
-      if (existingDraft) {
-        setTitle(existingDraft.title || '');
-        setContent(existingDraft.content || '');
-        setMood(existingDraft.mood || 'neutral');
-        setVisibility(existingDraft.visibility || 'private');
-        loadedDraftIdRef.current = draftId;
-      }
+  // Load the draft into the form once per draftId. Adjusting state during render (instead of in an
+  // effect) avoids a cascading re-render; see react.dev "You Might Not Need an Effect".
+  if (draftId && loadedDraftId !== draftId) {
+    const existingDraft = letters.find((l) => l.id === draftId);
+    if (existingDraft) {
+      setLoadedDraftId(draftId);
+      setTitle(existingDraft.title || '');
+      setContent(existingDraft.content || '');
+      setMood(existingDraft.mood || 'neutral');
+      setVisibility(existingDraft.visibility || 'private');
     }
-  }, [draftId, letters]);
+  }
 
   useEffect(() => {
     const handleClickOutside = (event: MouseEvent) => {
@@ -126,7 +126,7 @@ function FoldContent() {
       status: finalStatus,
       visibility: actualVisibility,
       sealUntil: customSealDate || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    } as any);
+    });
 
     setIsAnimating(true);
     if (finalStatus === 'sealed') {
@@ -192,7 +192,7 @@ function FoldContent() {
       mood,
       status: 'draft',
       visibility,
-    } as any);
+    });
 
     animTimeoutRef.current = setTimeout(() => {
       setSuccessMessage('Draft saved successfully to your jar!');

@@ -32,7 +32,7 @@ export default function MimiPanel({
       </div>
       
       <div className="p-4 rounded-2xl bg-stone-500/5 border border-stone-200/80 dark:border-zinc-800 text-xs space-y-2" style={{ borderColor: 'var(--card-border, rgba(229, 231, 235, 0.8))' }}>
-        <p className="font-bold text-stone-800 dark:text-stone-200">Mimi's Companion Space</p>
+        <p className="font-bold text-stone-800 dark:text-stone-200">Mimi&apos;s Companion Space</p>
         <p className="text-[11px] leading-relaxed text-stone-500 dark:text-stone-400" style={{ color: 'var(--text-muted)' }}>
           Dedicated slot for your custom Mimi agent appearance, interactive companion chat widget, or reflection prompts.
         </p>

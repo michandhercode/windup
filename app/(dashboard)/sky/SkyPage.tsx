@@ -1,12 +1,13 @@
 'use client';
 
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useMemo, useSyncExternalStore } from 'react';
 import { Heart, CheckCircle2, FoldHorizontal, UserCheck } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 import { ALL_MOCK_POOL, isPublicPlane } from '@/lib/sky-planes';
 import ViewLetterModal, { LetterModalAction } from '@/components/ViewLetterModal';
 import { formatLetterDate } from '@/lib/format';
 import type { Letter } from '@/types/letter';
+import { useIsClient, useLocalStorageItem, setLocalStorageItem } from '@/lib/hooks/useLocalStorage';
 
 const PLANES_PER_CATCH = 7;
 
@@ -27,65 +28,100 @@ interface PlanePlacement {
   delay: string;
 }
 
-const shuffle = <T,>(items: T[]): T[] => [...items].sort(() => 0.5 - Math.random());
+const READ_PLANES_KEY = 'sky_read_planes';
+const COMPACT_QUERY = '(max-width: 639px)';
+
+/** Small deterministic PRNG (mulberry32) so the sky is a pure function of its seed. */
+const createRandom = (seed: number) => {
+  let a = seed >>> 0;
+  return () => {
+    a = (a + 0x6d2b79f5) >>> 0;
+    let t = a;
+    t = Math.imul(t ^ (t >>> 15), t | 1);
+    t ^= t + Math.imul(t ^ (t >>> 7), t | 61);
+    return ((t ^ (t >>> 14)) >>> 0) / 4294967296;
+  };
+};
+
+const shuffle = <T,>(items: T[], random: () => number): T[] => {
+  const result = [...items];
+  for (let i = result.length - 1; i > 0; i--) {
+    const j = Math.floor(random() * (i + 1));
+    [result[i], result[j]] = [result[j], result[i]];
+  }
+  return result;
+};
 
 /**
  * Scatter helper: jittered grid, cells picked at random.
  * Phones (compact) use 2 columns x 4 rows so 96px planes never overlap; larger screens use 4 x 2.
  */
-const buildRandomLayout = (count: number, compact: boolean): PlanePlacement[] => {
+const buildRandomLayout = (count: number, compact: boolean, random: () => number): PlanePlacement[] => {
   const cols = compact ? 2 : 4;
   const rows = compact ? 4 : 2;
-  const cells = shuffle(Array.from({ length: cols * rows }, (_, i) => ({ col: i % cols, row: Math.floor(i / cols) }))).slice(0, count);
+  const cells = shuffle(
+    Array.from({ length: cols * rows }, (_, i) => ({ col: i % cols, row: Math.floor(i / cols) })),
+    random
+  ).slice(0, count);
 
   return cells.map(({ col, row }) => ({
-    left: compact ? `${col * 46 + 2 + Math.random() * 6}%` : `${col * 21 + 1 + Math.random() * 6}%`,
-    top: compact ? `${row * 24 + 2 + Math.random() * 8}%` : `${row * 40 + 4 + Math.random() * 16}%`,
-    duration: `${(5 + Math.random() * 3.5).toFixed(1)}s`,
-    delay: `${(Math.random() * 2).toFixed(1)}s`,
+    left: compact ? `${col * 46 + 2 + random() * 6}%` : `${col * 21 + 1 + random() * 6}%`,
+    top: compact ? `${row * 24 + 2 + random() * 8}%` : `${row * 40 + 4 + random() * 16}%`,
+    duration: `${(5 + random() * 3.5).toFixed(1)}s`,
+    delay: `${(random() * 2).toFixed(1)}s`,
   }));
+};
+
+const parseIds = (raw: string | null): string[] => {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : [];
+  } catch (e) {
+    console.error(e);
+    return [];
+  }
+};
+
+const subscribeCompact = (onChange: () => void) => {
+  const mq = window.matchMedia(COMPACT_QUERY);
+  mq.addEventListener('change', onChange);
+  return () => mq.removeEventListener('change', onChange);
 };
 
 export default function SkyPage() {
   const { letters } = useLetters();
   const [selectedPlane, setSelectedPlane] = useState<SkyPlane | null>(null);
   const [liked, setLiked] = useState(false);
-  const [batch, setBatch] = useState<SkyPlane[]>([]);
-  const [isCompact, setIsCompact] = useState(false);
+  // The whole sky is derived from this seed; "Catch More Planes" just rolls a new one.
+  const [seed, setSeed] = useState(() => Math.floor(Math.random() * 2 ** 31));
 
-  const [readPlaneIds, setReadPlaneIds] = useState<string[]>([]);
+  // Planes depend on a client-made seed, so only draw them after hydration (keeps SSR markup identical).
+  const isClient = useIsClient();
 
-  useEffect(() => {
-    const savedReads = localStorage.getItem('sky_read_planes');
-    if (savedReads) {
-      try {
-        setReadPlaneIds(JSON.parse(savedReads));
-      } catch (e) {
-        console.error(e);
-      }
-    }
-  }, []);
+  // Phone breakpoint (also reacts to rotation) so the sky re-scatters to fit
+  const isCompact = useSyncExternalStore(
+    subscribeCompact,
+    () => window.matchMedia(COMPACT_QUERY).matches,
+    () => false
+  );
 
-  // Track the phone breakpoint (also reacts to rotation) so the sky re-scatters to fit.
-  useEffect(() => {
-    const mq = window.matchMedia('(max-width: 639px)');
-    const update = () => setIsCompact(mq.matches);
-    update();
-    mq.addEventListener('change', update);
-    return () => mq.removeEventListener('change', update);
-  }, []);
+  const rawReadIds = useLocalStorageItem(READ_PLANES_KEY);
+  const readPlaneIds = useMemo(() => parseIds(rawReadIds), [rawReadIds]);
 
-  const userLettersFormatted: SkyPlane[] = letters.filter(isPublicPlane).map((l) => ({
-    id: l.id,
-    title: l.title || 'Untitled Thought',
-    content: l.content,
-    mood: l.mood || 'peaceful',
-    likes: (l as Letter & { likes?: number }).likes || 5,
-    createdAt: l.createdAt || new Date().toISOString(),
-    isUserOwner: true,
-  }));
+  const masterPool: SkyPlane[] = useMemo(() => {
+    const userPlanes: SkyPlane[] = letters.filter(isPublicPlane).map((l) => ({
+      id: l.id,
+      title: l.title || 'Untitled Thought',
+      content: l.content,
+      mood: l.mood || 'peaceful',
+      likes: (l as Letter & { likes?: number }).likes || 5,
+      createdAt: l.createdAt,
+      isUserOwner: true,
+    }));
+    return [...userPlanes, ...ALL_MOCK_POOL];
+  }, [letters]);
 
-  const masterPool: SkyPlane[] = [...userLettersFormatted, ...ALL_MOCK_POOL];
   const totalPlanesCount = masterPool.length;
   
   const todayStr = new Date().toDateString();
@@ -97,30 +133,31 @@ export default function SkyPage() {
     }
   }).length;
 
-  const getRandomBatch = () => shuffle(masterPool).slice(0, PLANES_PER_CATCH);
-
-  useEffect(() => {
-    setBatch(getRandomBatch());
-  }, [letters]);
-
   const handleCatchMore = () => {
-    setBatch(getRandomBatch());
+    setSeed(Math.floor(Math.random() * 2 ** 31));
   };
 
-  const placements = useMemo(() => buildRandomLayout(batch.length, isCompact), [batch, isCompact]);
+  const batch = useMemo(
+    () => shuffle(masterPool, createRandom(seed)).slice(0, PLANES_PER_CATCH),
+    [masterPool, seed]
+  );
+
+  // Offset the seed so placement doesn't mirror the shuffle that picked the planes
+  const placements = useMemo(
+    () => buildRandomLayout(batch.length, isCompact, createRandom(seed + 1)),
+    [batch.length, isCompact, seed]
+  );
 
   const handleOpenPlane = (plane: SkyPlane) => {
     setSelectedPlane(plane);
     setLiked(false);
 
     if (!readPlaneIds.includes(plane.id)) {
-      const updatedReads = [...readPlaneIds, plane.id];
-      setReadPlaneIds(updatedReads);
-      localStorage.setItem('sky_read_planes', JSON.stringify(updatedReads));
+      setLocalStorageItem(READ_PLANES_KEY, JSON.stringify([...readPlaneIds, plane.id]));
     }
   };
 
-  const activePlanes = batch.map((plane, i) => ({
+  const activePlanes = (isClient ? batch : []).map((plane, i) => ({
     ...plane,
     ...placements[i],
     isRead: readPlaneIds.includes(plane.id),

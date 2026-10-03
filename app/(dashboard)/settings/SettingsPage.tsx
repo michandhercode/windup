@@ -3,14 +3,29 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Settings, User, Database, Download, CheckCircle, AlertCircle, Info, Mail, FileText, X, Send, Bell } from 'lucide-react';
 import { useLetters } from '@/app/providers';
+import { useLocalStorageItem } from '@/lib/hooks/useLocalStorage';
 
 type ModalType = 'terms' | 'privacy' | 'support' | null;
 
 export default function SettingsPage() {
   const { letters } = useLetters();
-  const [displayName, setDisplayName] = useState('Anonymous');
-  const [email, setEmail] = useState('scribe@windup.app');
-  const [emailNotifications, setEmailNotifications] = useState(true);
+  // Saved values come from localStorage; the form only keeps what the user has typed so far.
+  const savedName = useLocalStorageItem('windup_display_name');
+  const savedEmail = useLocalStorageItem('windup_user_email');
+  const savedNotifications = useLocalStorageItem('windup_email_notifications');
+
+  const [nameDraft, setNameDraft] = useState<string | null>(null);
+  const [emailDraft, setEmailDraft] = useState<string | null>(null);
+  const [notificationsDraft, setNotificationsDraft] = useState<boolean | null>(null);
+
+  const displayName = nameDraft ?? (savedName || 'Anonymous');
+  const email = emailDraft ?? (savedEmail || 'scribe@windup.app');
+  const emailNotifications = notificationsDraft ?? (savedNotifications === null ? true : savedNotifications === 'true');
+
+  const setDisplayName = (value: string) => setNameDraft(value);
+  const setEmail = (value: string) => setEmailDraft(value);
+  const setEmailNotifications = (value: boolean) => setNotificationsDraft(value);
+
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [exportSuccess, setExportSuccess] = useState(false);
@@ -21,20 +36,6 @@ export default function SettingsPage() {
   // Support form state
   const [supportMessage, setSupportMessage] = useState('');
   const [supportSentSuccess, setSupportSentSuccess] = useState(false);
-
-  // Load saved preferences from localStorage on mount
-  useEffect(() => {
-    const savedName = localStorage.getItem('windup_display_name');
-    if (savedName) setDisplayName(savedName);
-
-    const savedEmail = localStorage.getItem('windup_user_email');
-    if (savedEmail) setEmail(savedEmail);
-
-    const savedNotifications = localStorage.getItem('windup_email_notifications');
-    if (savedNotifications !== null) {
-      setEmailNotifications(savedNotifications === 'true');
-    }
-  }, []);
 
   // Modal ESC key listener at Body Scroll Lock
   const closeModal = useCallback(() => {

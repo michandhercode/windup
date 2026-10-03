@@ -4,6 +4,7 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
+import { useIsClient, useLocalStorageItem, removeLocalStorageItem } from '@/lib/hooks/useLocalStorage';
 import { LogOut, Moon, Sun, LogIn, Eye, Menu, X, Settings, type LucideIcon } from 'lucide-react';
 
 interface NavLink {
@@ -20,56 +21,23 @@ export default function Navbar() {
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
   const mobileMenuRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme, setTheme } = useTheme();
-  const [mounted, setMounted] = useState(false);
+  const mounted = useIsClient();
   const isDark = mounted && resolvedTheme === 'dark';
-  const [isGuest, setIsGuest] = useState(false);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const router = useRouter();
   const pathname = usePathname();
 
-  const [displayName, setDisplayName] = useState('Anonymous Scribe');
-  const [email, setEmail] = useState('scribe@windup.app');
-  const [memberSince, setMemberSince] = useState<string | null>(null);
+  // Profile / guest status comes straight from localStorage (kept in sync by the hook)
+  const guestFlag = useLocalStorageItem('windup_is_guest') === 'true';
+  const savedEmail = useLocalStorageItem('windup_user_email');
+  const savedName = useLocalStorageItem('windup_display_name');
+  const savedJoined = useLocalStorageItem('windup_member_since');
 
-  // Load user data or guest status
-  const loadUserData = () => {
-    const guestFlag = localStorage.getItem('windup_is_guest') === 'true';
-    const savedEmail = localStorage.getItem('windup_user_email');
-    const savedName = localStorage.getItem('windup_display_name');
-    const savedJoined = localStorage.getItem('windup_member_since');
-
-    if (guestFlag || (!savedEmail && !savedName)) {
-      setIsGuest(true);
-      setDisplayName('Guest Traveler');
-      setEmail('Browsing mode');
-    } else {
-      setIsGuest(false);
-      if (savedName) {
-        setDisplayName(savedName.trim());
-      }
-      if (savedEmail) {
-        setEmail(savedEmail);
-      }
-      const joinedYear = savedJoined ? new Date(savedJoined).getFullYear() : NaN;
-      setMemberSince(Number.isNaN(joinedYear) ? null : String(joinedYear));
-    }
-  };
-
-  useEffect(() => {
-    setMounted(true);
-    loadUserData();
-
-    const handleStorageChange = () => {
-      loadUserData();
-    };
-    window.addEventListener('storage', handleStorageChange);
-    window.addEventListener('windup_profile_updated', handleStorageChange);
-
-    return () => {
-      window.removeEventListener('storage', handleStorageChange);
-      window.removeEventListener('windup_profile_updated', handleStorageChange);
-    };
-  }, []);
+  const isGuest = mounted && (guestFlag || (!savedEmail && !savedName));
+  const displayName = isGuest ? 'Guest Traveler' : savedName?.trim() || 'Anonymous Scribe';
+  const email = isGuest ? 'Browsing mode' : savedEmail || 'scribe@windup.app';
+  const joinedYear = !isGuest && savedJoined ? new Date(savedJoined).getFullYear() : NaN;
+  const memberSince = Number.isNaN(joinedYear) ? null : String(joinedYear);
 
   // Close dropdown when clicking outside
   useEffect(() => {
@@ -107,9 +75,9 @@ export default function Navbar() {
 
   const handleLogout = () => {
     setIsDropdownOpen(false);
-    localStorage.removeItem('windup_is_guest');
-    localStorage.removeItem('windup_user_email');
-    localStorage.removeItem('windup_display_name');
+    removeLocalStorageItem('windup_is_guest');
+    removeLocalStorageItem('windup_user_email');
+    removeLocalStorageItem('windup_display_name');
     router.push('/');
   };
 

@@ -3,6 +3,7 @@
 import { Letter } from '@/types/letter';
 import { getMoodConfig } from '@/lib/mood';
 import { formatLetterDate } from '@/lib/format';
+import { useNow } from '@/lib/hooks/useNow';
 import { Lock, Calendar, Edit3, Trash2, Eye, PenLine, BookmarkCheck, MailOpen, Send } from 'lucide-react';
 
 interface LetterCardProps {
@@ -27,8 +28,9 @@ const iconBtn =
   'p-2 rounded-lg text-slate-500 dark:text-slate-400 hover:bg-slate-900/5 dark:hover:bg-white/10 transition-colors cursor-pointer';
 
 export default function LetterCard({ letter, onClick, onRelease, onEdit, onDelete, isLeaving = false }: LetterCardProps) {
+  const now = useNow();
   const isNotYetUnlocked =
-    letter.status === 'sealed' && !!letter.sealUntil && Date.now() < new Date(letter.sealUntil).getTime();
+    letter.status === 'sealed' && !!letter.sealUntil && now < new Date(letter.sealUntil).getTime();
 
   const moodCfg = getMoodConfig(letter.mood);
   const MoodIcon = moodCfg.icon;

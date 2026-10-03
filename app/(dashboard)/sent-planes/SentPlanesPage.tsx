@@ -6,10 +6,21 @@ import { useLetters } from '@/app/providers';
 import AlertModal, { type AlertVariant } from '@/components/AlertModal';
 import { getMoodConfig } from '@/lib/mood';
 import ViewLetterModal, { LetterModalAction, LetterModalChip } from '@/components/ViewLetterModal';
+import type { Letter } from '@/types/letter';
+
+interface SentPlane {
+  id: string;
+  title: string;
+  content: string;
+  mood: string;
+  resonated: number;
+  /** Already formatted, e.g. "Oct 2, 2026" */
+  createdAt: string;
+}
 
 export default function SentPlanesPage() {
   const { letters, setLetters } = useLetters();
-  const [selectedPlane, setSelectedPlane] = useState<any | null>(null);
+  const [selectedPlane, setSelectedPlane] = useState<SentPlane | null>(null);
 
   const [confirmConfig, setConfirmConfig] = useState<{
     isOpen: boolean;
@@ -27,14 +38,14 @@ export default function SentPlanesPage() {
     onConfirm: () => {},
   });
 
-  const sentPlanes = letters
+  const sentPlanes: SentPlane[] = letters
     .filter((l) => l.visibility === 'anonymous_public' || l.status === 'released')
     .map((l) => ({
       id: l.id,
       title: l.title || 'Untitled Thought',
       content: l.content,
       mood: l.mood || 'peaceful',
-      resonated: (l as any).resonated || (l as any).likes || 12,
+      resonated: (l as Letter & { resonated?: number; likes?: number }).resonated || (l as Letter & { likes?: number }).likes || 12,
       createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Sep 28, 2026',
     }));
 

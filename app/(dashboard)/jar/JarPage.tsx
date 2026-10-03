@@ -31,7 +31,7 @@ const SHELVES: {
 
 export default function JarPage() {
   const router = useRouter();
-  const { letters, setLetters, displayName } = useLetters() as any; 
+  const { letters, setLetters, displayName } = useLetters();
   
   const [filter, setFilter] = useState<'all' | LetterStatus>('all');
   const [selectedLetter, setSelectedLetter] = useState<Letter | null>(null);

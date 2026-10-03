@@ -1,13 +1,24 @@
 'use client';
 
-import React, { createContext, useContext, useState, useEffect } from "react";
+import React, { createContext, useContext, useCallback, useMemo } from "react";
 import { ThemeProvider } from 'next-themes';
 import { Letter } from '@/types/letter';
+import { toMood } from '@/lib/mood';
+import { useLocalStorageItem, setLocalStorageItem } from '@/lib/hooks/useLocalStorage';
+
+const LETTERS_KEY = 'windup_letters';
+const DISPLAY_NAME_KEY = 'windup_display_name';
+
+/** Fields the caller provides when saving a letter. `mood` may be any string; it is normalised to a valid Mood. */
+export type NewLetterInput = Omit<Letter, 'id' | 'createdAt' | 'updatedAt' | 'mood'> & {
+  id?: string;
+  mood?: string;
+};
 
 interface LetterContextType {
   letters: Letter[];
   setLetters: React.Dispatch<React.SetStateAction<Letter[]>>;
-  addLetter: (letter: Omit<Letter, "id" | "createdAt" | "updatedAt"> & { id?: string; mood?: string | undefined }) => void;
+  addLetter: (letter: NewLetterInput) => void;
   updateLetter: (id: string, updatedFields: Partial<Letter>) => void;
   getLetterById: (id: string) => Letter | undefined;
   displayName: string;
@@ -16,64 +27,54 @@ interface LetterContextType {
 
 const LetterContext = createContext<LetterContextType | undefined>(undefined);
 
+const parseLetters = (raw: string | null): Letter[] => {
+  if (!raw) return [];
+  try {
+    const parsed: unknown = JSON.parse(raw);
+    return Array.isArray(parsed) ? (parsed as Letter[]) : [];
+  } catch (e) {
+    console.error("Failed to parse letters from localStorage", e);
+    return [];
+  }
+};
+
 export function Providers({ children }: { children: React.ReactNode }) {
-  const [letters, setLetters] = useState<Letter[]>([]);
-  const [displayName, setDisplayName] = useState<string>('Anonymous Scribe');
+  // localStorage is the source of truth; useLocalStorageItem keeps React in sync with it
+  // (and returns null on the server, so hydration always matches).
+  const rawLetters = useLocalStorageItem(LETTERS_KEY);
+  const letters = useMemo(() => parseLetters(rawLetters), [rawLetters]);
+  const displayName = useLocalStorageItem(DISPLAY_NAME_KEY) || 'Anonymous Scribe';
 
-  useEffect(() => {
-    // Kunin ang nakasave na letters mula sa localStorage
-    const savedLetters = localStorage.getItem("windup_letters");
-    if (savedLetters) {
-      try {
-        setLetters(JSON.parse(savedLetters));
-      } catch (e) {
-        console.error("Failed to parse letters from localStorage", e);
-      }
-    }
-
-    // Kunin ang nakasave na display name mula sa localStorage
-    const savedName = localStorage.getItem("windup_display_name");
-    if (savedName) {
-      setDisplayName(savedName);
-    }
+  // Same signature as a useState setter (value or updater), persisted straight to localStorage.
+  const setLetters = useCallback<React.Dispatch<React.SetStateAction<Letter[]>>>((action) => {
+    const current = parseLetters(localStorage.getItem(LETTERS_KEY));
+    const next = typeof action === 'function' ? action(current) : action;
+    setLocalStorageItem(LETTERS_KEY, JSON.stringify(next));
   }, []);
 
-  useEffect(() => {
-    localStorage.setItem("windup_letters", JSON.stringify(letters));
-  }, [letters]);
-
-  // Function para i-update at i-save sa localStorage ang display name
   const handleSetDisplayName = (name: string) => {
-    setDisplayName(name);
-    localStorage.setItem("windup_display_name", name);
+    setLocalStorageItem(DISPLAY_NAME_KEY, name);
   };
 
-  const addLetter = (letterData: Omit<Letter, "id" | "createdAt" | "updatedAt"> & { id?: string; mood?: string | undefined }) => {
+  const addLetter = (letterData: NewLetterInput) => {
     const now = new Date().toISOString();
-    const finalMood = letterData.mood || 'neutral';
-    const incomingId = letterData.id;
+    const { id: incomingId, mood: rawMood, ...rest } = letterData;
+    const mood = toMood(rawMood);
 
     setLetters((prev) => {
       // UPSERT: if a letter with this id already exists, update it in place
       if (incomingId && prev.some((l) => l.id === incomingId)) {
         return prev.map((l) =>
           l.id === incomingId
-            ? {
-                ...l,
-                ...letterData,
-                id: l.id,
-                mood: finalMood as any,
-                createdAt: l.createdAt,
-                updatedAt: now,
-              }
+            ? { ...l, ...rest, mood, createdAt: l.createdAt, updatedAt: now }
             : l
         );
       }
 
       // Otherwise create a brand new entry
       const newLetter: Letter = {
-        ...letterData,
-        mood: finalMood as any,
+        ...rest,
+        mood,
         id: incomingId || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()),
         createdAt: now,
         updatedAt: now,

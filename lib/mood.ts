@@ -19,6 +19,12 @@ export interface MoodConfig {
 /** Display order for pickers: neutral first, then the named moods. */
 export const MOOD_ORDER: Mood[] = ['neutral', 'peaceful', 'reflective', 'nostalgic', 'heavy', 'hopeful'];
 
+/** Narrow any string (e.g. from a picker or old localStorage data) to a valid Mood. */
+export const toMood = (value?: string): Mood => {
+  const key = value?.toLowerCase();
+  return MOOD_ORDER.find((m) => m === key) ?? 'neutral';
+};
+
 const MOODS: Record<Mood, MoodConfig> = {
   neutral: {
     label: 'Neutral',

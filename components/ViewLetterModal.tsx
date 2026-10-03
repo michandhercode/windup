@@ -33,18 +33,25 @@ interface ViewLetterModalProps {
  */
 export default function ViewLetterModal({ letter, onClose, byline, actions, showCloseButton = true }: ViewLetterModalProps) {
   const [closing, setClosing] = useState(false);
-  const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const onCloseRef = useRef(onClose);
   const isOpen = !!letter;
 
-  const requestClose = useCallback(() => {
-    if (timerRef.current) return;
-    setClosing(true);
-    timerRef.current = setTimeout(() => {
-      timerRef.current = null;
-      setClosing(false);
-      onClose();
-    }, 180);
+  // Keep the latest onClose without restarting the exit animation when the parent re-renders
+  useEffect(() => {
+    onCloseRef.current = onClose;
   }, [onClose]);
+
+  // Starting the exit animation is just state; the timer below finishes the close.
+  const requestClose = useCallback(() => setClosing(true), []);
+
+  useEffect(() => {
+    if (!closing) return;
+    const timer = setTimeout(() => {
+      setClosing(false);
+      onCloseRef.current();
+    }, 180);
+    return () => clearTimeout(timer);
+  }, [closing]);
 
   // ESC to close + body scroll lock
   useEffect(() => {
@@ -61,13 +68,6 @@ export default function ViewLetterModal({ letter, onClose, byline, actions, show
       window.removeEventListener('keydown', onKeyDown);
     };
   }, [isOpen, requestClose]);
-
-  useEffect(
-    () => () => {
-      if (timerRef.current) clearTimeout(timerRef.current);
-    },
-    []
-  );
 
   if (!letter) return null;
 

@@ -145,7 +145,7 @@ export default function LoginPage() {
         {/* Footer Link */}
         <div className="text-center pt-1">
           <p className="text-xs text-slate-600 dark:text-slate-400">
-            Don't have an account?{' '}
+            Don&apos;t have an account?{' '}
             <Link href="/signup" className="font-semibold text-rose-600 dark:text-rose-400 hover:underline underline-offset-4">
               Create a new space
             </Link>
