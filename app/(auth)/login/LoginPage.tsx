@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import FieldError, { getAuthInputClass } from '@/components/FieldError';
+import { validateEmail, validatePassword } from '@/lib/validation';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
@@ -11,32 +13,36 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [touched, setTouched] = useState({ email: false, password: false });
   const router = useRouter();
+
+  // Inline errors are derived: shown after blur/submit, and they clear as soon as the value is fixed.
+  const emailError = touched.email ? validateEmail(email) : '';
+  const passwordError = touched.password ? validatePassword(password) : '';
 
   const handleLogin = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    if (!email.trim() || !password.trim()) {
-      setError('Please fill in both email and password.');
-      return;
-    }
+    setTouched({ email: true, password: true });
+    if (validateEmail(email) || validatePassword(password)) return;
 
     setIsLoading(true);
 
     try {
       await new Promise((resolve) => setTimeout(resolve, 800));
 
-      const emailPrefix = email.split('@')[0];
+      const cleanEmail = email.trim();
+      const emailPrefix = cleanEmail.split('@')[0];
       const formattedName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
 
-      localStorage.setItem('windup_user_email', email);
+      localStorage.setItem('windup_user_email', cleanEmail);
       localStorage.setItem('windup_display_name', formattedName);
 
       window.dispatchEvent(new Event('windup_profile_updated'));
 
       router.push('/jar');
-    } catch (err) {
+    } catch {
       setError('Invalid email or password. Please try again.');
       setIsLoading(false);
     }
@@ -78,44 +84,57 @@ export default function LoginPage() {
         )}
 
         {/* Form Fields */}
-        <form onSubmit={handleLogin} className="space-y-4">
+        <form onSubmit={handleLogin} noValidate className="space-y-4">
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <label htmlFor="login-email" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
               Email Address
             </label>
             <input
+              id="login-email"
               type="email"
-              required
+              autoComplete="email"
+              aria-required="true"
+              aria-invalid={!!emailError}
+              aria-describedby={emailError ? 'login-email-error' : undefined}
               disabled={isLoading}
               value={email}
               onChange={(e) => setEmail(e.target.value)}
+              onBlur={() => setTouched((t) => ({ ...t, email: true }))}
               placeholder="scribe@windup.app"
-              className="w-full px-4 py-3 rounded-2xl border border-amber-200/80 dark:border-slate-700 bg-amber-50/30 dark:bg-slate-800/50 text-xs font-medium text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-rose-400/50 focus:border-rose-400 focus:outline-hidden transition-all disabled:opacity-50"
+              className={getAuthInputClass(!!emailError, 'px-4')}
             />
+            <FieldError id="login-email-error" message={emailError} />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <label htmlFor="login-password" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
               Password
             </label>
             <div className="relative">
               <input
+                id="login-password"
                 type={showPassword ? 'text' : 'password'}
-                required
+                autoComplete="current-password"
+                aria-required="true"
+                aria-invalid={!!passwordError}
+                aria-describedby={passwordError ? 'login-password-error' : undefined}
                 disabled={isLoading}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onBlur={() => setTouched((t) => ({ ...t, password: true }))}
                 placeholder="••••••••"
-                className="w-full px-4 pr-10 py-3 rounded-2xl border border-amber-200/80 dark:border-slate-700 bg-amber-50/30 dark:bg-slate-800/50 text-xs font-medium text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-rose-400/50 focus:border-rose-400 focus:outline-hidden transition-all disabled:opacity-50"
+                className={getAuthInputClass(!!passwordError, 'px-4 pr-10')}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
                 className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            <FieldError id="login-password-error" message={passwordError} />
           </div>
 
           {/* Submit Button */}

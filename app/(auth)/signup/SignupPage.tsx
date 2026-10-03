@@ -4,6 +4,8 @@ import { useState } from 'react';
 import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { User, Lock, Mail, ArrowRight, Sparkles, AlertCircle, Eye, EyeOff } from 'lucide-react';
+import FieldError, { getAuthInputClass } from '@/components/FieldError';
+import { validateDisplayName, validateEmail, validatePassword } from '@/lib/validation';
 
 export default function SignupPage() {
   const [name, setName] = useState('');
@@ -12,22 +14,22 @@ export default function SignupPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
   const [isLoading, setIsLoading] = useState(false);
+  const [touched, setTouched] = useState({ name: false, email: false, password: false });
   const router = useRouter();
+
+  // Inline errors are derived: shown after blur/submit, and they clear as soon as the value is fixed.
+  const nameError = touched.name ? validateDisplayName(name) : '';
+  const emailError = touched.email ? validateEmail(email) : '';
+  const passwordError = touched.password ? validatePassword(password) : '';
 
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
 
-    const trimmedName = name.trim();
-    if (trimmedName.includes(' ')) {
-      setError('Please enter a single display name only (no spaces).');
-      return;
-    }
+    setTouched({ name: true, email: true, password: true });
+    if (validateDisplayName(name) || validateEmail(email) || validatePassword(password)) return;
 
-    if (!trimmedName) {
-      setError('Display name is required.');
-      return;
-    }
+    const trimmedName = name.trim();
 
     setIsLoading(true);
 
@@ -42,7 +44,8 @@ export default function SignupPage() {
       window.dispatchEvent(new Event('windup_profile_updated'));
 
       router.push('/jar');
-    } catch (err) {
+    } catch {
+      setError('Something went wrong while creating your account. Please try again.');
       setIsLoading(false);
     }
   };
@@ -83,10 +86,10 @@ export default function SignupPage() {
         )}
 
         {/* Signup Form */}
-        <form onSubmit={handleSignUp} className="space-y-4">
+        <form onSubmit={handleSignUp} noValidate className="space-y-4">
           <div className="space-y-1.5">
             <div className="flex justify-between items-center">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+              <label htmlFor="signup-name" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
                 Display Name
               </label>
               <span className="text-[10px] text-slate-400">Single name only</span>
@@ -94,60 +97,85 @@ export default function SignupPage() {
             <div className="relative">
               <User className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               <input
+                id="signup-name"
                 type="text"
-                required
+                autoComplete="username"
+                aria-required="true"
+                aria-invalid={!!nameError}
+                aria-describedby={nameError ? 'signup-name-error' : undefined}
                 disabled={isLoading}
                 value={name}
                 onChange={(e) => {
                   setName(e.target.value.replace(/\s+/g, ''));
                 }}
+                onBlur={() => setTouched((t) => ({ ...t, name: true }))}
                 placeholder="Scribe"
-                className="w-full pl-10 pr-4 py-3 rounded-2xl border border-amber-200/80 dark:border-slate-700 bg-amber-50/30 dark:bg-slate-800/50 text-xs font-medium text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-rose-400/50 focus:border-rose-400 focus:outline-hidden transition-all disabled:opacity-50"
+                className={getAuthInputClass(!!nameError, 'pl-10 pr-4')}
               />
             </div>
+            <FieldError id="signup-name-error" message={nameError} />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <label htmlFor="signup-email" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
               Email Address
             </label>
             <div className="relative">
               <Mail className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               <input
+                id="signup-email"
                 type="email"
-                required
+                autoComplete="email"
+                aria-required="true"
+                aria-invalid={!!emailError}
+                aria-describedby={emailError ? 'signup-email-error' : undefined}
                 disabled={isLoading}
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                onBlur={() => setTouched((t) => ({ ...t, email: true }))}
                 placeholder="scribe@windup.app"
-                className="w-full pl-10 pr-4 py-3 rounded-2xl border border-amber-200/80 dark:border-slate-700 bg-amber-50/30 dark:bg-slate-800/50 text-xs font-medium text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-rose-400/50 focus:border-rose-400 focus:outline-hidden transition-all disabled:opacity-50"
+                className={getAuthInputClass(!!emailError, 'pl-10 pr-4')}
               />
             </div>
+            <FieldError id="signup-email-error" message={emailError} />
           </div>
 
           <div className="space-y-1.5">
-            <label className="text-xs font-semibold text-slate-700 dark:text-slate-300">
+            <label htmlFor="signup-password" className="text-xs font-semibold text-slate-700 dark:text-slate-300">
               Password
             </label>
             <div className="relative">
               <Lock className="w-4 h-4 text-slate-400 absolute left-3.5 top-3.5" />
               <input
+                id="signup-password"
                 type={showPassword ? 'text' : 'password'}
-                required
+                autoComplete="new-password"
+                aria-required="true"
+                aria-invalid={!!passwordError}
+                aria-describedby={passwordError ? 'signup-password-error' : 'signup-password-hint'}
                 disabled={isLoading}
                 value={password}
                 onChange={(e) => setPassword(e.target.value)}
+                onBlur={() => setTouched((t) => ({ ...t, password: true }))}
                 placeholder="••••••••"
-                className="w-full pl-10 pr-10 py-3 rounded-2xl border border-amber-200/80 dark:border-slate-700 bg-amber-50/30 dark:bg-slate-800/50 text-xs font-medium text-slate-800 dark:text-slate-100 focus:ring-2 focus:ring-rose-400/50 focus:border-rose-400 focus:outline-hidden transition-all disabled:opacity-50"
+                className={getAuthInputClass(!!passwordError, 'pl-10 pr-10')}
               />
               <button
                 type="button"
                 onClick={() => setShowPassword(!showPassword)}
+                aria-label={showPassword ? 'Hide password' : 'Show password'}
                 className="absolute right-3.5 top-3.5 text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 transition-colors cursor-pointer"
               >
                 {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
               </button>
             </div>
+            {passwordError ? (
+              <FieldError id="signup-password-error" message={passwordError} />
+            ) : (
+              <p id="signup-password-hint" className="text-[10px] text-slate-400">
+                At least 8 characters.
+              </p>
+            )}
           </div>
 
           {/* Submit Button */}

@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useLetters } from '@/app/providers';
 import { Letter, LetterStatus } from '@/types/letter';
+import { DAILY_LIMIT_MESSAGE, getDailyReleaseStatus, tryConsumeDailyRelease } from '@/lib/daily-release';
 import AlertModal from '@/components/AlertModal';
 import LetterCard from '@/components/LetterCard';
 import SealedOpenConfirm from '@/components/SealedOpenConfirm';
@@ -38,6 +39,7 @@ export default function JarPage() {
   const [letterToDelete, setLetterToDelete] = useState<string | null>(null);
   const [letterToRelease, setLetterToRelease] = useState<Letter | null>(null);
   const [letterToOpen, setLetterToOpen] = useState<Letter | null>(null);
+  const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   const [animatingLetterId, setAnimatingLetterId] = useState<string | null>(null);
 
   const privateJarLetters = letters.filter((l: Letter) => l.visibility !== 'anonymous_public' && l.status !== 'released');
@@ -89,27 +91,35 @@ export default function JarPage() {
 
   const confirmRelease = (letter: Letter, e?: React.MouseEvent) => {
     e?.stopPropagation();
+    // Don't ask for confirmation if the daily limit is already used up
+    if (getDailyReleaseStatus().isLimitReached) {
+      setIsLimitModalOpen(true);
+      return;
+    }
     setLetterToRelease(letter);
   };
 
   const handleExecuteRelease = () => {
     if (letterToRelease) {
       const targetId = letterToRelease.id;
-      setAnimatingLetterId(targetId);
       setLetterToRelease(null);
 
+      // Authoritative check + count (also resets the counter on a new calendar day)
+      if (!tryConsumeDailyRelease().allowed) {
+        setIsLimitModalOpen(true);
+        return;
+      }
+
+      setAnimatingLetterId(targetId);
+
       setTimeout(() => {
-        const updatedLetters = letters.map((l: Letter) => {
-          if (l.id === targetId) {
-            return {
-              ...l,
-              visibility: 'anonymous_public' as const,
-              status: 'released' as const,
-            };
-          }
-          return l;
-        });
-        setLetters(updatedLetters);
+        setLetters((prev) =>
+          prev.map((l) =>
+            l.id === targetId
+              ? { ...l, visibility: 'anonymous_public' as const, status: 'released' as const }
+              : l
+          )
+        );
         if (selectedLetter?.id === targetId) {
           setSelectedLetter(null);
         }
@@ -294,6 +304,18 @@ export default function JarPage() {
         confirmIcon={Send}
         onConfirm={handleExecuteRelease}
         description="This will make your letter anonymous and public so it can fly freely in the Sky page for others to see. Do you wish to continue?"
+      />
+
+      {/* Daily release limit reached */}
+      <AlertModal
+        isOpen={isLimitModalOpen}
+        onClose={() => setIsLimitModalOpen(false)}
+        title="Daily limit reached"
+        subtitle="Planes can fly again tomorrow"
+        icon={Send}
+        variant="warning"
+        cancelLabel="Got it"
+        description={DAILY_LIMIT_MESSAGE}
       />
 
       {/* Delete Confirmation */}

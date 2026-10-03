@@ -28,6 +28,11 @@ const read = (key: string): string | null => {
   }
 };
 
+/** One-off read for event handlers (never call during render - use `useLocalStorageItem` there). */
+export function getLocalStorageItem(key: string): string | null {
+  return read(key);
+}
+
 /**
  * Reads a localStorage string and re-renders when it changes (this tab or another).
  * Returns `null` on the server and during hydration, so SSR markup always matches.

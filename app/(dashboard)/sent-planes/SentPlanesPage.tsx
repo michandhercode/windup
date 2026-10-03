@@ -1,12 +1,13 @@
 'use client';
 
 import { useState } from 'react';
-import { Calendar, Heart, Trash2, BookmarkCheck } from 'lucide-react';
+import { Calendar, Heart, Trash2, BookmarkCheck, Send } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 import AlertModal, { type AlertVariant } from '@/components/AlertModal';
 import { getMoodConfig } from '@/lib/mood';
 import ViewLetterModal, { LetterModalAction, LetterModalChip } from '@/components/ViewLetterModal';
 import { getPlaneLikes } from '@/lib/sky-planes';
+import { DAILY_LIMIT_MESSAGE, MAX_DAILY_RELEASES, useDailyReleaseStatus } from '@/lib/daily-release';
 
 interface SentPlane {
   id: string;
@@ -22,6 +23,10 @@ interface SentPlane {
 export default function SentPlanesPage() {
   const { letters, setLetters } = useLetters();
   const [selectedPlaneId, setSelectedPlaneId] = useState<string | null>(null);
+
+  // Hydration-safe (empty on the server) and live: updates when storage changes or the day rolls over
+  const releaseStatus = useDailyReleaseStatus();
+  const releasedToday = Math.min(releaseStatus.used, MAX_DAILY_RELEASES);
 
   const [confirmConfig, setConfirmConfig] = useState<{
     isOpen: boolean;
@@ -141,6 +146,33 @@ export default function SentPlanesPage() {
             <div>
               <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Resonated</div>
               <div className="text-sm font-extrabold text-slate-800 dark:text-slate-100">{totalResonated}</div>
+            </div>
+          </div>
+
+          {/* Daily release counter */}
+          <div
+            title={releaseStatus.isLimitReached ? DAILY_LIMIT_MESSAGE : undefined}
+            className={`col-span-2 lg:col-span-1 px-4 py-2 rounded-2xl border backdrop-blur-xs flex items-center gap-3 shadow-xs transition-colors ${
+              releaseStatus.isLimitReached
+                ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-300/60 dark:border-amber-800/60'
+                : 'bg-white/80 dark:bg-slate-900/80 border-sky-200/60 dark:border-slate-800'
+            }`}
+          >
+            <div
+              className={`p-1.5 rounded-xl ${
+                releaseStatus.isLimitReached
+                  ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
+                  : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
+              }`}
+            >
+              <Send className="w-4 h-4" />
+            </div>
+            <div>
+              <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Today&apos;s Limit</div>
+              <div className="text-sm font-extrabold text-slate-800 dark:text-slate-100">
+                {releasedToday}/{MAX_DAILY_RELEASES}{' '}
+                <span className="text-[10px] font-semibold text-slate-400">released</span>
+              </div>
             </div>
           </div>
         </div>
