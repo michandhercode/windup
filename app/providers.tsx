@@ -93,8 +93,10 @@ export function Providers({ children }: { children: React.ReactNode }) {
     return letters.find((l) => l.id === id);
   };
 
+  // First visit is always Light Mode (OS dark preference is ignored). A manual choice from the
+  // Navbar toggle is saved to localStorage (key: "theme") by next-themes and wins on later visits.
   return (
-    <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+    <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
       <LetterContext.Provider value={{ letters, setLetters, addLetter, updateLetter, getLetterById, displayName, setDisplayName: handleSetDisplayName }}>
         {children}
       </LetterContext.Provider>
