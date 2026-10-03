@@ -83,10 +83,10 @@ export default function SentPlanesPage() {
   const totalResonated = sentPlanes.reduce((acc, item) => acc + item.resonated, 0);
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 min-h-screen space-y-6">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 min-h-[calc(100dvh-65px)] space-y-6">
       
       {/* Header Banner - Sky Theme (Matched exact structure with FoldPage) */}
-      <div className="p-6 rounded-3xl border border-sky-200/60 dark:border-sky-900/40 bg-sky-50/40 dark:bg-sky-950/20 text-slate-800 dark:text-slate-100 shadow-xs transition-colors duration-200 flex flex-wrap items-center justify-between gap-5">
+      <div className="p-4 sm:p-6 rounded-3xl border border-sky-200/60 dark:border-sky-900/40 bg-sky-50/40 dark:bg-sky-950/20 text-slate-800 dark:text-slate-100 shadow-xs transition-colors duration-200 flex flex-wrap items-center justify-between gap-5">
         <div className="flex items-center gap-4 sm:gap-5 min-w-0 flex-1">
           <img
             src="/logo_and_icons/sentplanes_icon.webp"
@@ -108,7 +108,7 @@ export default function SentPlanesPage() {
         </div>
 
         {/* Header Stats Counter */}
-        <div className="flex items-center gap-3 shrink-0">
+        <div className="grid grid-cols-2 gap-3 w-full lg:flex lg:w-auto lg:shrink-0 lg:items-center">
           <div className="px-4 py-2 rounded-2xl bg-white/80 dark:bg-slate-900/80 border border-sky-200/60 dark:border-slate-800 backdrop-blur-xs flex items-center gap-3 shadow-xs">
             <div className="p-1.5 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
               <img src="/logo_and_icons/my_plane.webp" alt="" className="w-4 h-4 object-contain" />
@@ -132,7 +132,7 @@ export default function SentPlanesPage() {
       </div>
 
       {sentPlanes.length > 0 ? (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-5">
           {sentPlanes.map((plane) => {
             const cfg = getMoodConfig(plane.mood);
             const MoodIcon = cfg.icon;
@@ -197,7 +197,7 @@ export default function SentPlanesPage() {
           })}
         </div>
       ) : (
-        <div className="rounded-3xl border border-dashed border-sky-200 dark:border-slate-800 p-12 text-center flex flex-col items-center justify-center space-y-3 bg-sky-50/30 dark:bg-slate-900/30">
+        <div className="rounded-3xl border border-dashed border-sky-200 dark:border-slate-800 p-8 sm:p-12 text-center flex flex-col items-center justify-center space-y-3 bg-sky-50/30 dark:bg-slate-900/30">
           <img
             src="/logo_and_icons/plane_empty.webp"
             alt=""

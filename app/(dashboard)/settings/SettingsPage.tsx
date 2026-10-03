@@ -123,10 +123,10 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-8 min-h-screen space-y-6 relative">
+    <div className="max-w-4xl mx-auto px-4 sm:px-6 py-6 sm:py-8 min-h-[calc(100dvh-65px)] space-y-6 relative">
       
       {/* Settings Header Banner */}
-      <div className="p-6 rounded-3xl border border-sky-200/70 dark:border-sky-800/50 bg-gradient-to-r from-sky-100/90 via-sky-50/70 to-indigo-50/80 dark:from-slate-900 dark:via-sky-950/40 dark:to-indigo-950/50 text-slate-800 dark:text-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
+      <div className="p-4 sm:p-6 rounded-3xl border border-sky-200/70 dark:border-sky-800/50 bg-gradient-to-r from-sky-100/90 via-sky-50/70 to-indigo-50/80 dark:from-slate-900 dark:via-sky-950/40 dark:to-indigo-950/50 text-slate-800 dark:text-slate-100 shadow-xs flex flex-wrap items-center justify-between gap-4">
         <div className="space-y-1.5">
           <div className="inline-flex items-center gap-1.5 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-400/30 text-sky-800 dark:text-sky-200 text-[11px] font-bold tracking-wide uppercase">
             <Settings className="w-3.5 h-3.5" />
@@ -142,7 +142,7 @@ export default function SettingsPage() {
       </div>
 
       {/* 1. Profile Details Card */}
-      <div className="p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-5">
+      <div className="p-4 sm:p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-5">
         <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="p-2 rounded-xl bg-sky-500/10 text-sky-600 dark:text-sky-400">
             <User className="w-4 h-4" />
@@ -248,7 +248,7 @@ export default function SettingsPage() {
       </div>
 
       {/* 2. Sanctuary Data Export Card */}
-      <div className="p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-4">
+      <div className="p-4 sm:p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-4">
         <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-600 dark:text-emerald-400">
             <Database className="w-4 h-4" />
@@ -290,7 +290,7 @@ export default function SettingsPage() {
       </div>
 
       {/* 3. About & Support Card */}
-      <div className="p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-4">
+      <div className="p-4 sm:p-6 rounded-3xl border border-slate-200/80 dark:border-slate-800 bg-white dark:bg-slate-900 shadow-xs space-y-4">
         <div className="flex items-center gap-2.5 pb-3 border-b border-slate-100 dark:border-slate-800">
           <div className="p-2 rounded-xl bg-indigo-500/10 text-indigo-600 dark:text-indigo-400">
             <Info className="w-4 h-4" />
@@ -360,14 +360,14 @@ export default function SettingsPage() {
       {/* Universal Modal Popup */}
       {activeModal && (
         <div 
-          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-4 animate-in fade-in duration-200"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-slate-900/50 backdrop-blur-xs p-3 sm:p-4 animate-in fade-in duration-200"
           onClick={closeModal}
         >
           <div 
             role="dialog"
             aria-modal="true"
             aria-labelledby="modal-title"
-            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl max-w-lg w-full p-6 sm:p-7 shadow-2xl space-y-4 relative"
+            className="bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 rounded-3xl w-[92vw] max-w-lg max-h-[90dvh] overflow-y-auto overscroll-contain p-5 sm:p-7 shadow-2xl space-y-4 relative"
             onClick={(e) => e.stopPropagation()}
           >
             <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
@@ -422,7 +422,7 @@ export default function SettingsPage() {
               </form>
             ) : (
               <>
-                <div className="text-xs text-slate-600 dark:text-slate-300 space-y-3 leading-relaxed max-h-72 overflow-y-auto pr-2 custom-scrollbar">
+                <div className="text-xs text-slate-600 dark:text-slate-300 space-y-3 leading-relaxed max-h-[45dvh] sm:max-h-72 overflow-y-auto pr-2 custom-scrollbar">
                   {activeModal === 'terms' ? (
                     <>
                       <p className="font-semibold text-slate-800 dark:text-slate-200">Last updated: October 2026</p>

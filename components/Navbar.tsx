@@ -4,10 +4,21 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { LogOut, Moon, Sun, LogIn, Eye } from 'lucide-react';
+import { LogOut, Moon, Sun, LogIn, Eye, Menu, X, Settings, type LucideIcon } from 'lucide-react';
+
+interface NavLink {
+  name: string;
+  href: string;
+  /** Existing app artwork shown in the mobile menu */
+  iconSrc?: string;
+  /** Lucide fallback when there is no artwork */
+  Icon?: LucideIcon;
+}
 
 export default function Navbar() {
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const mobileMenuRef = useRef<HTMLDivElement>(null);
   const { resolvedTheme, setTheme } = useTheme();
   const [mounted, setMounted] = useState(false);
   const isDark = mounted && resolvedTheme === 'dark';
@@ -71,6 +82,25 @@ export default function Navbar() {
     return () => document.removeEventListener('mousedown', handleClickOutside);
   }, []);
 
+  // Mobile menu: close on outside click / ESC
+  useEffect(() => {
+    if (!isMobileMenuOpen) return;
+    const onMouseDown = (event: MouseEvent) => {
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target as Node)) {
+        setIsMobileMenuOpen(false);
+      }
+    };
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === 'Escape') setIsMobileMenuOpen(false);
+    };
+    document.addEventListener('mousedown', onMouseDown);
+    document.addEventListener('keydown', onKeyDown);
+    return () => {
+      document.removeEventListener('mousedown', onMouseDown);
+      document.removeEventListener('keydown', onKeyDown);
+    };
+  }, [isMobileMenuOpen]);
+
   const toggleDarkMode = () => {
     setTheme(isDark ? 'light' : 'dark');
   };
@@ -83,16 +113,16 @@ export default function Navbar() {
     router.push('/');
   };
 
-  const allNavLinks = [
-    { name: 'Fold', href: '/fold' },
-    { name: 'My Jar', href: '/jar' },
-    { name: 'The Sky', href: '/sky' },
-    { name: 'Sent Planes', href: '/sent-planes' },
-    { name: 'Settings', href: '/settings' },
+  const allNavLinks: NavLink[] = [
+    { name: 'Fold', href: '/fold', iconSrc: '/logo_and_icons/fold_icon.webp' },
+    { name: 'My Jar', href: '/jar', iconSrc: '/logo_and_icons/jar_icon.webp' },
+    { name: 'The Sky', href: '/sky', iconSrc: '/logo_and_icons/sky_icon.webp' },
+    { name: 'Sent Planes', href: '/sent-planes', iconSrc: '/logo_and_icons/sentplanes_icon.webp' },
+    { name: 'Settings', href: '/settings', Icon: Settings },
   ];
 
-  const navLinks = isGuest
-    ? [{ name: 'The Sky', href: '/sky' }]
+  const navLinks: NavLink[] = isGuest
+    ? [{ name: 'The Sky', href: '/sky', iconSrc: '/logo_and_icons/sky_icon.webp' }]
     : allNavLinks;
 
   // Kunin ang unang salita sa pangalan para sa bookmark nametag
@@ -100,7 +130,7 @@ export default function Navbar() {
 
   return (
     <header className="w-full border-b border-rose-100/70 dark:border-slate-800 bg-[#fbf9f5]/90 dark:bg-slate-900/90 backdrop-blur-md sticky top-0 z-40">
-      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-4">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between gap-2 sm:gap-4">
         
         {/* Brand logo */}
         <Link href={isGuest ? '/sky' : '/jar'} className="flex items-center gap-2 font-bold text-lg text-slate-900 dark:text-slate-100 group shrink-0">
@@ -133,13 +163,14 @@ export default function Navbar() {
         </nav>
 
         {/* User / Theme section */}
-        <div className="flex items-center gap-2.5 shrink-0">
+        <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
           {/* Dark mode toggle */}
           <button
             type="button"
             onClick={toggleDarkMode}
             className="p-2 rounded-full bg-rose-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-rose-100/70 dark:hover:bg-slate-700 transition-colors cursor-pointer border border-rose-100/60 dark:border-transparent"
             title="Toggle theme"
+            aria-label="Toggle theme"
           >
             {isDark ? <Sun className="w-4 h-4 text-amber-400" /> : <Moon className="w-4 h-4 text-slate-600 dark:text-slate-300" />}
           </button>
@@ -164,7 +195,7 @@ export default function Navbar() {
               <button
                 type="button"
                 onClick={() => setIsDropdownOpen(!isDropdownOpen)}
-                className="flex items-center gap-2 px-3 py-1.5 rounded-2xl bg-[#fdfbf7] dark:bg-slate-800 border-2 border-rose-200/80 dark:border-slate-700 shadow-[2px_2px_0px_rgba(244,63,94,0.18)] hover:shadow-[3px_3px_0px_rgba(244,63,94,0.22)] hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer shrink-0"
+                className="flex items-center gap-2 px-2 min-[400px]:px-3 py-1.5 rounded-2xl bg-[#fdfbf7] dark:bg-slate-800 border-2 border-rose-200/80 dark:border-slate-700 shadow-[2px_2px_0px_rgba(244,63,94,0.18)] hover:shadow-[3px_3px_0px_rgba(244,63,94,0.22)] hover:-translate-y-0.5 active:translate-y-0 transition-all cursor-pointer shrink-0"
                 title="Profile Menu"
               >
                 {/* Profile icon */}
@@ -175,13 +206,13 @@ export default function Navbar() {
                   draggable={false}
                 />
                 
-                <span className="text-xs font-bold text-slate-700 dark:text-slate-200 max-w-[100px] truncate">
+                <span className="hidden min-[400px]:inline text-xs font-bold text-slate-700 dark:text-slate-200 max-w-[100px] truncate">
                   {firstName}
                 </span>
               </button>
 
               {isDropdownOpen && (
-                <div className="absolute right-0 mt-2 w-56 rounded-2xl bg-white dark:bg-slate-900 border border-rose-100 dark:border-slate-800 shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
+                <div className="absolute right-0 mt-2 w-56 max-w-[calc(100vw-2rem)] rounded-2xl bg-white dark:bg-slate-900 border border-rose-100 dark:border-slate-800 shadow-xl py-2 z-50 animate-in fade-in zoom-in-95 duration-150">
                   <div className="px-4 py-2.5 border-b border-rose-50 dark:border-slate-800 flex items-center gap-3">
                     <img
                       src="/logo_and_icons/profile_icon.webp"
@@ -213,6 +244,57 @@ export default function Navbar() {
                     </button>
                   </div>
                 </div>
+              )}
+            </div>
+          )}
+
+          {/* Mobile menu toggle (hidden from md up, where the pill nav is shown) */}
+          {navLinks.length > 1 && (
+            <div className="md:hidden" ref={mobileMenuRef}>
+              <button
+                type="button"
+                onClick={() => setIsMobileMenuOpen((open) => !open)}
+                aria-expanded={isMobileMenuOpen}
+                aria-controls="mobile-nav"
+                aria-label={isMobileMenuOpen ? 'Close menu' : 'Open menu'}
+                className="p-2 rounded-full bg-rose-50 dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-rose-100/70 dark:hover:bg-slate-700 transition-colors cursor-pointer border border-rose-100/60 dark:border-transparent"
+              >
+                {isMobileMenuOpen ? <X className="w-4 h-4" /> : <Menu className="w-4 h-4" />}
+              </button>
+
+              {isMobileMenuOpen && (
+                <nav
+                  id="mobile-nav"
+                  aria-label="Primary"
+                  className="absolute inset-x-0 top-full max-h-[calc(100dvh-4rem)] overflow-y-auto overscroll-contain border-b border-rose-100/70 dark:border-slate-800 bg-[#fbf9f5]/95 dark:bg-slate-900/95 backdrop-blur-md shadow-lg animate-in fade-in slide-in-from-top-2 duration-150"
+                >
+                  <ul className="max-w-7xl mx-auto grid gap-1 p-3 sm:px-6">
+                    {navLinks.map((link) => {
+                      const isActive = pathname === link.href;
+                      return (
+                        <li key={link.href}>
+                          <Link
+                            href={link.href}
+                            onClick={() => setIsMobileMenuOpen(false)}
+                            aria-current={isActive ? 'page' : undefined}
+                            className={`flex items-center gap-3 rounded-2xl px-4 py-3 text-sm transition-colors ${
+                              isActive
+                                ? 'bg-white dark:bg-slate-700 text-rose-600 dark:text-rose-300 font-bold shadow-xs'
+                                : 'text-slate-700 dark:text-slate-200 hover:bg-rose-50 dark:hover:bg-slate-800 font-medium'
+                            }`}
+                          >
+                            {link.iconSrc ? (
+                              <img src={link.iconSrc} alt="" className="w-7 h-7 object-contain shrink-0 select-none" draggable={false} />
+                            ) : (
+                              link.Icon && <link.Icon className="w-5 h-5 mx-1 shrink-0 text-slate-500 dark:text-slate-400" />
+                            )}
+                            {link.name}
+                          </Link>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                </nav>
               )}
             </div>
           )}

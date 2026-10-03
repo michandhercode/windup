@@ -59,8 +59,8 @@ export default function SealDatePicker({ isOpen, onClose, onConfirm }: SealDateP
       )}
 
       {/* Date and Time Inputs */}
-      <div className="grid grid-cols-2 gap-3">
-        <div className="space-y-1">
+      <div className="grid grid-cols-1 min-[420px]:grid-cols-2 gap-3">
+        <div className="space-y-1 min-w-0">
           <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1">
             <Calendar className="w-3 h-3 text-amber-600" /> Date
           </label>
@@ -76,7 +76,7 @@ export default function SealDatePicker({ isOpen, onClose, onConfirm }: SealDateP
           />
         </div>
 
-        <div className="space-y-1">
+        <div className="space-y-1 min-w-0">
           <label className="text-[11px] font-semibold text-slate-600 dark:text-slate-300 flex items-center gap-1">
             <Clock className="w-3 h-3 text-amber-600" /> Time
           </label>

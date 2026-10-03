@@ -119,10 +119,10 @@ export default function JarPage() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 min-h-screen space-y-6 relative">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 min-h-[calc(100dvh-65px)] space-y-6 relative">
       
       {/* Header Banner */}
-      <div className="p-6 rounded-3xl border border-rose-200/60 dark:border-rose-900/40 bg-rose-50/40 dark:bg-rose-950/20 text-slate-800 dark:text-slate-100 shadow-xs transition-colors duration-200">
+      <div className="p-4 sm:p-6 rounded-3xl border border-rose-200/60 dark:border-rose-900/40 bg-rose-50/40 dark:bg-rose-950/20 text-slate-800 dark:text-slate-100 shadow-xs transition-colors duration-200">
         <div className="flex items-center gap-4 sm:gap-5">
           <img
             src="/logo_and_icons/jar_icon.webp"
@@ -148,7 +148,7 @@ export default function JarPage() {
         
         {/* Sidebar - The Memory Shelf */}
         <div 
-          className="lg:col-span-4 rounded-3xl border p-5 space-y-4 shadow-xs transition-colors duration-200"
+          className="lg:col-span-4 rounded-3xl border p-4 sm:p-5 space-y-4 shadow-xs transition-colors duration-200"
           style={{ 
             backgroundColor: 'var(--card-bg)', 
             borderColor: 'var(--card-border)', 
@@ -173,7 +173,7 @@ export default function JarPage() {
             </button>
           </div>
 
-          <div className="space-y-3 pt-1">
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-1 gap-3 pt-1">
             {SHELVES.map((shelf) => {
               const isActive = filter === shelf.id;
               return (
@@ -209,7 +209,7 @@ export default function JarPage() {
         {/* Letters Section */}
         <div className="lg:col-span-8 space-y-4">
           {filteredLetters.length > 0 ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               {filteredLetters.map((letter: Letter) => (
                 <LetterCard
                   key={letter.id}
@@ -224,7 +224,7 @@ export default function JarPage() {
             </div>
           ) : (
             <div 
-              className="rounded-3xl border p-12 text-center flex flex-col items-center justify-center space-y-3"
+              className="rounded-3xl border p-8 sm:p-12 text-center flex flex-col items-center justify-center space-y-3"
               style={{ backgroundColor: 'var(--card-bg)', borderColor: 'var(--card-border)' }}
             >
               <img

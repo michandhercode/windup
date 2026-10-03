@@ -1,23 +1,46 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useMemo } from 'react';
 import { Heart, CheckCircle2, FoldHorizontal, UserCheck } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 import { ALL_MOCK_POOL, isPublicPlane } from '@/lib/sky-planes';
 import ViewLetterModal, { LetterModalAction } from '@/components/ViewLetterModal';
 import { formatLetterDate } from '@/lib/format';
+import type { Letter } from '@/types/letter';
 
 const PLANES_PER_CATCH = 7;
 
-// Scatter helper: jittered 4x2 grid (8 cells), 7 cells picked at random
-const buildRandomLayout = (count: number) => {
-  const cells = Array.from({ length: 8 }, (_, i) => ({ col: i % 4, row: Math.floor(i / 4) }))
-    .sort(() => 0.5 - Math.random())
-    .slice(0, count);
+interface SkyPlane {
+  id: string;
+  title: string;
+  content: string;
+  mood: string;
+  likes: number;
+  createdAt: string;
+  isUserOwner: boolean;
+}
+
+interface PlanePlacement {
+  left: string;
+  top: string;
+  duration: string;
+  delay: string;
+}
+
+const shuffle = <T,>(items: T[]): T[] => [...items].sort(() => 0.5 - Math.random());
+
+/**
+ * Scatter helper: jittered grid, cells picked at random.
+ * Phones (compact) use 2 columns x 4 rows so 96px planes never overlap; larger screens use 4 x 2.
+ */
+const buildRandomLayout = (count: number, compact: boolean): PlanePlacement[] => {
+  const cols = compact ? 2 : 4;
+  const rows = compact ? 4 : 2;
+  const cells = shuffle(Array.from({ length: cols * rows }, (_, i) => ({ col: i % cols, row: Math.floor(i / cols) }))).slice(0, count);
 
   return cells.map(({ col, row }) => ({
-    left: `${col * 21 + 1 + Math.random() * 6}%`,
-    top: `${row * 40 + 4 + Math.random() * 16}%`,
+    left: compact ? `${col * 46 + 2 + Math.random() * 6}%` : `${col * 21 + 1 + Math.random() * 6}%`,
+    top: compact ? `${row * 24 + 2 + Math.random() * 8}%` : `${row * 40 + 4 + Math.random() * 16}%`,
     duration: `${(5 + Math.random() * 3.5).toFixed(1)}s`,
     delay: `${(Math.random() * 2).toFixed(1)}s`,
   }));
@@ -25,10 +48,11 @@ const buildRandomLayout = (count: number) => {
 
 export default function SkyPage() {
   const { letters } = useLetters();
-  const [selectedPlane, setSelectedPlane] = useState<any | null>(null);
+  const [selectedPlane, setSelectedPlane] = useState<SkyPlane | null>(null);
   const [liked, setLiked] = useState(false);
-  const [currentBatch, setCurrentBatch] = useState<any[]>([]);
-  
+  const [batch, setBatch] = useState<SkyPlane[]>([]);
+  const [isCompact, setIsCompact] = useState(false);
+
   const [readPlaneIds, setReadPlaneIds] = useState<string[]>([]);
 
   useEffect(() => {
@@ -42,19 +66,26 @@ export default function SkyPage() {
     }
   }, []);
 
-  const userLettersFormatted = letters
-    .filter(isPublicPlane)
-    .map((l) => ({
-      id: l.id,
-      title: l.title || 'Untitled Thought',
-      content: l.content,
-      mood: l.mood || 'peaceful',
-      likes: (l as any).likes || 5,
-      createdAt: (l as any).createdAt || new Date().toISOString(),
-      isUserOwner: true,
-    }));
+  // Track the phone breakpoint (also reacts to rotation) so the sky re-scatters to fit.
+  useEffect(() => {
+    const mq = window.matchMedia('(max-width: 639px)');
+    const update = () => setIsCompact(mq.matches);
+    update();
+    mq.addEventListener('change', update);
+    return () => mq.removeEventListener('change', update);
+  }, []);
 
-  const masterPool = [...userLettersFormatted, ...ALL_MOCK_POOL];
+  const userLettersFormatted: SkyPlane[] = letters.filter(isPublicPlane).map((l) => ({
+    id: l.id,
+    title: l.title || 'Untitled Thought',
+    content: l.content,
+    mood: l.mood || 'peaceful',
+    likes: (l as Letter & { likes?: number }).likes || 5,
+    createdAt: l.createdAt || new Date().toISOString(),
+    isUserOwner: true,
+  }));
+
+  const masterPool: SkyPlane[] = [...userLettersFormatted, ...ALL_MOCK_POOL];
   const totalPlanesCount = masterPool.length;
   
   const todayStr = new Date().toDateString();
@@ -66,21 +97,19 @@ export default function SkyPage() {
     }
   }).length;
 
-  const getRandomBatch = () => {
-    const shuffled = [...masterPool].sort(() => 0.5 - Math.random()).slice(0, PLANES_PER_CATCH);
-    const layout = buildRandomLayout(shuffled.length);
-    return shuffled.map((plane, i) => ({ ...plane, ...layout[i] }));
-  };
+  const getRandomBatch = () => shuffle(masterPool).slice(0, PLANES_PER_CATCH);
 
   useEffect(() => {
-    setCurrentBatch(getRandomBatch());
+    setBatch(getRandomBatch());
   }, [letters]);
 
   const handleCatchMore = () => {
-    setCurrentBatch(getRandomBatch());
+    setBatch(getRandomBatch());
   };
 
-  const handleOpenPlane = (plane: any) => {
+  const placements = useMemo(() => buildRandomLayout(batch.length, isCompact), [batch, isCompact]);
+
+  const handleOpenPlane = (plane: SkyPlane) => {
     setSelectedPlane(plane);
     setLiked(false);
 
@@ -91,13 +120,14 @@ export default function SkyPage() {
     }
   };
 
-  const activePlanes = currentBatch.map((plane) => ({
+  const activePlanes = batch.map((plane, i) => ({
     ...plane,
+    ...placements[i],
     isRead: readPlaneIds.includes(plane.id),
   }));
 
   return (
-    <div className="relative w-full min-h-[calc(100dvh-65px)] overflow-hidden flex flex-col items-center justify-between p-4 sm:p-6">
+    <div className="relative w-full min-h-[calc(100dvh-65px)] overflow-hidden flex flex-col items-center justify-between p-3 sm:p-6">
 
       {/* Full-viewport sky background */}
       <div
@@ -133,7 +163,7 @@ export default function SkyPage() {
           {/* Catch More Planes Button */}
           <button 
             onClick={handleCatchMore}
-            className="px-4 py-2 rounded-2xl bg-amber-100/60 hover:bg-amber-200/70 text-amber-950 dark:bg-slate-800/60 dark:hover:bg-slate-700/60 dark:text-amber-200 text-xs font-semibold border border-amber-200/60 dark:border-slate-700/60 shadow-2xs hover:scale-[1.01] active:scale-[0.99] transition-all duration-200"
+            className="w-full sm:w-auto px-4 py-2.5 sm:py-2 rounded-2xl bg-amber-100/60 hover:bg-amber-200/70 text-amber-950 dark:bg-slate-800/60 dark:hover:bg-slate-700/60 dark:text-amber-200 text-xs font-semibold border border-amber-200/60 dark:border-slate-700/60 shadow-2xs hover:scale-[1.01] active:scale-[0.99] transition-all duration-200"
           >
             Catch More Planes
           </button>
@@ -142,7 +172,7 @@ export default function SkyPage() {
         {/* Bottom Header Row */}
         <div className="flex flex-wrap items-center justify-between gap-3 pt-2.5 border-t border-slate-200/40 dark:border-slate-800/50 text-xs">
           {/* Legend */}
-          <div className="flex items-center gap-3 text-[11px] text-slate-600 dark:text-slate-400 font-medium">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-slate-600 dark:text-slate-400 font-medium">
             <span className="inline-flex items-center gap-1.5">
               <span className="h-2.5 w-2.5 rounded-full bg-emerald-400/90 ring-2 ring-white/60 dark:ring-slate-800 shadow-[0_0_6px_rgba(52,211,153,0.5)]" />
               Unread
@@ -156,7 +186,7 @@ export default function SkyPage() {
           </div>
 
           {/* Pastel Stats */}
-          <div className="flex items-center gap-2">
+          <div className="flex flex-wrap items-center gap-2">
             <span className="px-2.5 py-1 rounded-xl bg-sky-100/50 dark:bg-slate-800/50 text-sky-900 dark:text-sky-300 border border-sky-200/50 dark:border-slate-700/50 text-[11px] font-medium">
               Total: <strong className="font-bold">{totalPlanesCount}</strong>
             </span>
@@ -169,7 +199,7 @@ export default function SkyPage() {
       </div>
 
       {/* Planes Floating Sky Area */}
-      <div className="relative z-10 w-full flex-1 min-h-[420px]">
+      <div className="relative z-10 w-full flex-1 min-h-[560px] sm:min-h-[420px]">
         {activePlanes.map((plane) => {
           return (
             <div
@@ -244,6 +274,8 @@ export default function SkyPage() {
           }
         }
         onClose={() => setSelectedPlane(null)}
+        // "Refold Plane" already returns the plane to the sky, so no extra Close button
+        showCloseButton={false}
         byline={
           selectedPlane?.isUserOwner ? (
             <span className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-semibold">

@@ -20,13 +20,18 @@ interface ViewLetterModalProps {
   byline?: ReactNode;
   /** Page-specific actions, rendered on the left of the footer. Can be a function to get the animated close handler. */
   actions?: ReactNode | ((requestClose: () => void) => ReactNode);
+  /**
+   * Show the footer "Close" button (default true). Pages whose own action already dismisses the
+   * modal (e.g. The Sky's "Refold Plane") pass `false`. Backdrop click and ESC always close.
+   */
+  showCloseButton?: boolean;
 }
 
 /**
  * The single "read a letter" popup used by My Jar, The Sky and Sent Planes.
- * Layout: [date | mood] -> title -> scrollable letter -> [page actions | Close]
+ * Layout: [date | mood] -> title -> scrollable letter -> [page actions | optional Close]
  */
-export default function ViewLetterModal({ letter, onClose, byline, actions }: ViewLetterModalProps) {
+export default function ViewLetterModal({ letter, onClose, byline, actions, showCloseButton = true }: ViewLetterModalProps) {
   const [closing, setClosing] = useState(false);
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isOpen = !!letter;
@@ -71,7 +76,7 @@ export default function ViewLetterModal({ letter, onClose, byline, actions }: Vi
 
   return (
     <div
-      className={`fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/50 backdrop-blur-xs transition-opacity duration-200 ${
+      className={`fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-4 bg-slate-900/50 backdrop-blur-xs transition-opacity duration-200 ${
         closing ? 'opacity-0' : 'animate-in fade-in duration-150'
       }`}
       onClick={requestClose}
@@ -81,14 +86,14 @@ export default function ViewLetterModal({ letter, onClose, byline, actions }: Vi
         aria-modal="true"
         aria-labelledby="view-letter-title"
         onClick={(e) => e.stopPropagation()}
-        className={`relative flex max-h-[88vh] w-full max-w-2xl flex-col overflow-hidden rounded-3xl border shadow-2xl transition-all duration-200 ${mood.paperClass} ${
+        className={`relative flex max-h-[88dvh] w-[92vw] max-w-2xl flex-col overflow-hidden rounded-3xl border shadow-2xl transition-all duration-200 ${mood.paperClass} ${
           closing ? 'scale-95 opacity-0' : 'animate-in zoom-in-95 duration-150'
         }`}
       >
         {/* Margin-line accent */}
         <span aria-hidden="true" className={`absolute inset-y-0 left-0 w-1.5 ${mood.accentClass}`} />
 
-        <div className="flex min-h-0 flex-1 flex-col gap-4 p-6 pl-8 sm:p-8 sm:pl-10">
+        <div className="flex min-h-0 flex-1 flex-col gap-4 p-4 pl-6 sm:p-8 sm:pl-10 [@media(max-height:480px)]:gap-2 [@media(max-height:480px)]:py-3">
           {/* Header: date + mood */}
           <div className="flex shrink-0 items-center justify-between gap-3 text-xs">
             <span className="inline-flex items-center gap-1.5 font-medium text-slate-500 dark:text-slate-400">
@@ -110,24 +115,26 @@ export default function ViewLetterModal({ letter, onClose, byline, actions }: Vi
           </div>
 
           {/* Letter body */}
-          <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto border-y border-dashed border-slate-300/70 py-5 pr-2 dark:border-slate-700">
+          <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain border-y border-dashed border-slate-300/70 py-4 pr-2 sm:py-5 [@media(max-height:480px)]:py-2 dark:border-slate-700">
             <p className="whitespace-pre-wrap font-serif text-[15px] leading-relaxed text-slate-700 dark:text-slate-200 sm:text-base">
               {letter.content}
             </p>
           </div>
 
-          {/* Footer: page actions + Close */}
+          {/* Footer: page actions + optional Close */}
           <div className="flex shrink-0 flex-wrap items-center justify-between gap-3">
             <div className="flex flex-wrap items-center gap-2">
               {typeof actions === 'function' ? actions(requestClose) : actions}
             </div>
-            <button
-              type="button"
-              onClick={requestClose}
-              className="ml-auto cursor-pointer rounded-xl bg-slate-800 px-6 py-2 text-xs font-semibold text-white shadow-xs transition-opacity hover:opacity-90 active:scale-95 dark:bg-slate-100 dark:text-slate-900"
-            >
-              Close
-            </button>
+            {showCloseButton && (
+              <button
+                type="button"
+                onClick={requestClose}
+                className="max-sm:w-full sm:ml-auto cursor-pointer rounded-xl bg-slate-800 px-6 py-2.5 sm:py-2 text-xs font-semibold text-white shadow-xs transition-opacity hover:opacity-90 active:scale-95 dark:bg-slate-100 dark:text-slate-900"
+              >
+                Close
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -146,7 +153,7 @@ const TONES: Record<ActionTone, string> = {
   rose: 'bg-rose-50 text-rose-800 border-rose-200 hover:bg-rose-100 dark:bg-rose-950 dark:text-rose-200 dark:border-rose-800 dark:hover:bg-rose-900',
 };
 
-const ACTION_BASE = 'inline-flex items-center gap-1.5 rounded-xl border px-4 py-2 text-xs font-semibold transition-all';
+const ACTION_BASE = 'inline-flex items-center gap-1.5 rounded-xl border px-4 py-2.5 sm:py-2 text-xs font-semibold transition-all';
 
 interface LetterModalActionProps {
   icon?: ReactNode;

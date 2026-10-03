@@ -43,12 +43,12 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex flex-col items-center justify-between p-6 text-slate-800 dark:text-slate-100 transition-colors">
+    <div className="min-h-dvh flex flex-col items-center justify-between p-4 sm:p-6 text-slate-800 dark:text-slate-100 transition-colors">
       
       <div></div>
 
       {/* Main Centered Card matching the exact Landing Page style */}
-      <div className="w-full max-w-md p-8 rounded-3xl bg-white/90 dark:bg-slate-900/90 border border-amber-200/80 dark:border-slate-800 shadow-xl shadow-amber-900/15 backdrop-blur-md space-y-6 animate-in fade-in zoom-in-95 duration-500 ease-out">
+      <div className="w-full max-w-md p-6 sm:p-8 rounded-3xl bg-white/90 dark:bg-slate-900/90 border border-amber-200/80 dark:border-slate-800 shadow-xl shadow-amber-900/15 backdrop-blur-md space-y-6 animate-in fade-in zoom-in-95 duration-500 ease-out">
         
         {/* Logo / Icon Header */}
         <div className="flex justify-center">

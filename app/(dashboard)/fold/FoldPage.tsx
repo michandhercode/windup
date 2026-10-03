@@ -2,39 +2,25 @@
 
 import { useState, useEffect, useRef, Suspense } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { 
-  Send, 
-  Lock, 
-  Eye, 
-  ChevronDown, 
-  Sparkles, 
-  Feather, 
-  CloudRain, 
-  HeartHandshake, 
-  Clock, 
-  BookOpen, 
+import {
+  Send,
+  Lock,
+  Eye,
+  ChevronDown,
+  Sparkles,
   Lightbulb,
   Archive,
   FileText,
   AlertCircle,
-  PenTool,
-  Smile
 } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 import { Visibility } from '@/types/letter';
 
 import SealDatePicker from '@/components/SealDatePicker';
+import MoodPicker from '@/components/MoodPicker';
 
 const MAX_WORDS = 1000;
 const MAX_TITLE_LENGTH = 100;
-
-const MOODS = [
-  { id: 'peaceful', label: 'Peaceful', color: 'bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border-emerald-300/50 hover:bg-emerald-500/20', activeBg: 'bg-emerald-600 text-white border-emerald-600 shadow-xs', icon: Feather },
-  { id: 'reflective', label: 'Reflective', color: 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-300/50 hover:bg-sky-500/20', activeBg: 'bg-sky-600 text-white border-sky-600 shadow-xs', icon: BookOpen },
-  { id: 'nostalgic', label: 'Nostalgic', color: 'bg-amber-500/10 text-amber-800 dark:text-amber-300 border-amber-300/50 hover:bg-amber-500/20', activeBg: 'bg-amber-600 text-white border-amber-600 shadow-xs', icon: Clock },
-  { id: 'heavy', label: 'Heavy', color: 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-300/50 hover:bg-purple-500/20', activeBg: 'bg-purple-600 text-white border-purple-600 shadow-xs', icon: CloudRain },
-  { id: 'hopeful', label: 'Hopeful', color: 'bg-rose-500/10 text-rose-700 dark:text-rose-300 border-rose-300/50 hover:bg-rose-500/20', activeBg: 'bg-rose-600 text-white border-rose-600 shadow-xs', icon: HeartHandshake },
-];
 
 function FoldContent() {
   const router = useRouter();
@@ -224,7 +210,7 @@ function FoldContent() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-8 min-h-screen space-y-6 relative">
+    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 min-h-[calc(100dvh-65px)] space-y-6 relative">
       
       {/* Notifications */}
       {successMessage && (
@@ -242,7 +228,7 @@ function FoldContent() {
       )}
 
       {/* Header Banner - Green Theme (Layout Matched with JarPage) */}
-      <div className="p-6 rounded-3xl border border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/20 text-slate-800 dark:text-slate-100 shadow-xs transition-colors duration-200">
+      <div className="p-4 sm:p-6 rounded-3xl border border-emerald-200/60 dark:border-emerald-900/40 bg-emerald-50/40 dark:bg-emerald-950/20 text-slate-800 dark:text-slate-100 shadow-xs transition-colors duration-200">
         <div className="flex items-center gap-4 sm:gap-5">
           <img
             src="/logo_and_icons/fold_icon.webp"
@@ -270,7 +256,7 @@ function FoldContent() {
         <div className="lg:col-span-8">
           <form
             onSubmit={handleFormSubmit}
-            className={`rounded-3xl border p-6 sm:p-7 shadow-xs flex flex-col justify-between space-y-6 transition-all duration-500 overflow-hidden ${
+            className={`rounded-3xl border p-4 sm:p-7 shadow-xs flex flex-col justify-between space-y-6 transition-all duration-500 overflow-hidden ${
               animType === 'fold' ? 'scale-90 opacity-30 rotate-1 blur-xs' : ''
             } ${animType === 'draft' ? 'animate-pulse opacity-70' : ''} ${
               animType === 'seal' ? 'scale-95 brightness-90 animate-bounce' : ''
@@ -340,7 +326,7 @@ function FoldContent() {
                   disabled={isAnimating}
                   aria-expanded={isVisibilityOpen}
                   aria-haspopup="menu"
-                  className={`flex items-center gap-2 px-3.5 py-2 rounded-xl border text-xs font-semibold transition-all duration-150 active:scale-95 cursor-pointer ${
+                  className={`flex w-full sm:w-auto items-center justify-center sm:justify-start gap-2 px-3.5 py-2.5 sm:py-2 rounded-xl border text-xs font-semibold transition-all duration-150 active:scale-95 cursor-pointer ${
                     visibility === 'anonymous_public'
                       ? 'bg-sky-500/10 text-sky-700 dark:text-sky-300 border-sky-300/50'
                       : 'bg-purple-500/10 text-purple-700 dark:text-purple-300 border-purple-300/50'
@@ -398,13 +384,13 @@ function FoldContent() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex items-center gap-2 flex-wrap">
+              <div className="flex items-center gap-2 flex-wrap sm:justify-end">
                 {visibility !== 'anonymous_public' && (
                   <button
                     type="button"
                     onClick={handleSaveAsDraft}
                     disabled={isAnimating}
-                    className="px-3.5 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700/80 transition-all duration-150 flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-2xs"
+                    className="flex-1 sm:flex-none justify-center px-3.5 py-2.5 sm:py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700/80 transition-all duration-150 flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-2xs"
                   >
                     <FileText className={`w-3.5 h-3.5 opacity-80 ${animType === 'draft' ? 'animate-spin' : ''}`} />
                     <span>{animType === 'draft' ? 'Saving...' : 'Save Draft'}</span>
@@ -431,7 +417,7 @@ function FoldContent() {
                       setIsSealModalOpen(true);
                     }}
                     disabled={isAnimating}
-                    className="px-3.5 py-2 rounded-xl border border-amber-300/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs font-semibold hover:bg-amber-500/20 transition-all duration-150 flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-2xs"
+                    className="flex-1 sm:flex-none justify-center px-3.5 py-2.5 sm:py-2 rounded-xl border border-amber-300/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs font-semibold hover:bg-amber-500/20 transition-all duration-150 flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-2xs"
                   >
                     <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
                     <span>Seal Letter</span>
@@ -442,7 +428,7 @@ function FoldContent() {
                 <button
                   type="submit"
                   disabled={isAnimating}
-                  className="px-4 py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs active:scale-95 transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
+                  className="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs active:scale-95 transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
                 >
                   {visibility === 'anonymous_public' ? (
                     <Send className={`w-3.5 h-3.5 transition-transform duration-500 ${
@@ -469,56 +455,8 @@ function FoldContent() {
         {/* Side Panels - Layout matched with JarPage Sidebar */}
         <div className="lg:col-span-4 space-y-6">
 
-          {/* Current Mood Box */}
-          <div 
-            className="rounded-3xl border p-5 space-y-4 shadow-xs transition-colors duration-200"
-            style={{ 
-              backgroundColor: 'var(--card-bg)', 
-              borderColor: 'var(--card-border)', 
-              color: 'var(--text-main)' 
-            }}
-          >
-            <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--card-border)' }}>
-              <div className="flex items-center gap-2">
-                <Smile className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
-                <h2 className="text-xs font-bold tracking-wider uppercase opacity-80">Current Mood / Vibe</h2>
-              </div>
-              <span className="text-[10px] font-medium opacity-50">Optional</span>
-            </div>
-            
-            <div className="flex flex-wrap gap-2 pt-1">
-              <button
-                type="button"
-                onClick={() => setMood('neutral')}
-                className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 border active:scale-95 cursor-pointer ${
-                  mood === 'neutral' 
-                    ? 'bg-slate-700 text-white border-slate-700 shadow-2xs' 
-                    : 'bg-slate-500/10 text-slate-700 dark:text-slate-300 border-slate-300/50 hover:bg-slate-500/20'
-                }`}
-              >
-                <Sparkles className="w-3.5 h-3.5" />
-                <span>Neutral</span>
-              </button>
-
-              {MOODS.map((m) => {
-                const Icon = m.icon;
-                const isSelected = mood === m.id;
-                return (
-                  <button
-                    key={m.id}
-                    type="button"
-                    onClick={() => setMood(m.id)}
-                    className={`flex items-center gap-2 px-3 py-1.5 rounded-xl text-xs font-semibold transition-all duration-150 border active:scale-95 cursor-pointer ${
-                      isSelected ? m.activeBg : m.color
-                    }`}
-                  >
-                    <Icon className="w-3.5 h-3.5" />
-                    <span>{m.label}</span>
-                  </button>
-                );
-              })}
-            </div>
-          </div>
+          {/* Current Mood Box (icons/colors from lib/mood.ts) */}
+          <MoodPicker selectedMood={mood} onSelectMood={setMood} />
 
           {/* Ask Mimi Box */}
           <div 

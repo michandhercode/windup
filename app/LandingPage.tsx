@@ -30,7 +30,7 @@ export default function LandingPage() {
   const totalPlanes = (letters?.filter(isPublicPlane)?.length || 0) + ALL_MOCK_POOL.length;
 
   return (
-    <div className="relative isolate overflow-hidden min-h-screen flex flex-col items-center justify-between p-4 sm:p-6 bg-[#fbf9f5] dark:bg-[var(--bg-main)] text-slate-800 dark:text-slate-100 transition-colors">
+    <div className="relative isolate overflow-hidden min-h-dvh flex flex-col items-center justify-between p-4 sm:p-6 bg-[#fbf9f5] dark:bg-[var(--bg-main)] text-slate-800 dark:text-slate-100 transition-colors">
 
       {/* Stop-motion background */}
       <div aria-hidden="true" className="absolute inset-0 -z-10 pointer-events-none">

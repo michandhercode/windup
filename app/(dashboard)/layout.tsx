@@ -6,7 +6,7 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-screen text-[var(--text-main)] transition-colors">
+    <div className="min-h-dvh text-[var(--text-main)] transition-colors">
       <Navbar />
       <main>{children}</main>
     </div>
