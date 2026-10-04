@@ -237,7 +237,7 @@ function FoldContent() {
   };
 
   return (
-    <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 min-h-[calc(100dvh-65px)] space-y-6 relative">
+    <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 min-h-[calc(100dvh-65px)] space-y-6 relative overflow-x-hidden">
       
       {/* Notifications */}
       {successMessage && (
@@ -277,7 +277,7 @@ function FoldContent() {
             <div className="inline-flex items-center gap-1.5 px-2.5 py-0.5 rounded-full bg-emerald-500/10 border border-emerald-300/40 text-emerald-700 dark:text-emerald-300 text-[10px] font-bold tracking-wide uppercase">
               Sanctuary Journal
             </div>
-            <h1 className="text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50">
+            <h1 className="text-xl sm:text-2xl font-bold tracking-tight text-slate-900 dark:text-slate-50 break-words">
               {draftId ? 'Edit Draft Thought' : 'Fold a Quiet Thought'}
             </h1>
             <p className="text-xs font-medium max-w-2xl leading-relaxed text-slate-600 dark:text-slate-300">
@@ -287,10 +287,11 @@ function FoldContent() {
         </div>
       </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
+      {/* Mobile/Tablet: single column (Editor -> Mood -> Mimi). Desktop (lg+): 2-column grid. */}
+      <div className="flex flex-col gap-6 lg:grid lg:grid-cols-12 lg:items-start">
         
         {/* Main Editor Section */}
-        <div className="lg:col-span-8">
+        <div className="w-full min-w-0 lg:col-span-8">
           <form
             onSubmit={handleFormSubmit}
             className={`rounded-3xl border p-4 sm:p-7 shadow-xs flex flex-col justify-between space-y-6 transition-all duration-500 overflow-hidden ${
@@ -342,7 +343,7 @@ function FoldContent() {
                     if (errorMessage) setErrorMessage('');
                   }}
                   disabled={isAnimating}
-                  className="w-full text-xs sm:text-sm font-serif placeholder:font-sans placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none bg-transparent resize-none leading-relaxed min-h-[260px]"
+                  className="block w-full text-xs sm:text-sm font-serif placeholder:font-sans placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none bg-transparent resize-none leading-relaxed min-h-[260px]"
                 />
                 <div className={`flex justify-end text-[11px] mt-1 font-mono transition-colors ${
                   wordCount > MAX_WORDS ? 'text-rose-500 font-bold' : wordCount >= MAX_WORDS * 0.9 ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500'
@@ -353,7 +354,7 @@ function FoldContent() {
             </div>
 
             {/* Bottom Actions Bar */}
-            <div className="pt-4 border-t border-slate-200/60 dark:border-slate-800/80 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div className="pt-4 border-t border-slate-200/60 dark:border-slate-800/80 flex flex-col gap-3 sm:flex-row sm:flex-wrap sm:items-center sm:justify-between">
               
               {/* Visibility Selector Dropdown */}
               <div className="relative shrink-0" ref={dropdownRef}>
@@ -384,7 +385,7 @@ function FoldContent() {
                 {isVisibilityOpen && (
                   <div 
                     role="menu"
-                    className="absolute left-0 bottom-full mb-2 w-64 border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-xl py-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-150"
+                    className="absolute left-0 bottom-full mb-2 w-64 max-w-[calc(100vw-4rem)] border border-slate-200 dark:border-slate-800 bg-white/95 dark:bg-slate-900/95 backdrop-blur-md rounded-2xl shadow-xl py-2 z-50 text-xs animate-in fade-in zoom-in-95 duration-150"
                   >
                     <button
                       type="button"
@@ -421,7 +422,7 @@ function FoldContent() {
               </div>
 
               {/* Action Buttons */}
-              <div className="flex flex-wrap items-center gap-3 min-w-0 sm:flex-1 sm:justify-end">
+              <div className="flex flex-wrap items-center gap-2 min-w-0 w-full sm:w-auto sm:flex-1 sm:justify-end">
                 {visibility !== 'anonymous_public' && (
                   <button
                     type="button"
@@ -465,7 +466,7 @@ function FoldContent() {
                   /* Limit reached: the Release button is replaced by a calm, in-flow notice */
                   <div
                     role="status"
-                    className="flex w-full items-center justify-center gap-2 rounded-xl border border-amber-300/60 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 px-3.5 py-2.5 sm:w-auto sm:justify-start sm:py-2 text-xs font-semibold text-amber-800 dark:text-amber-200 shadow-2xs"
+                    className="flex w-full min-w-0 max-w-full items-center justify-center gap-2 rounded-xl border border-amber-300/60 dark:border-amber-800/60 bg-amber-50 dark:bg-amber-950/40 px-3.5 py-2.5 sm:w-auto sm:justify-start sm:py-2 text-xs font-semibold text-amber-800 dark:text-amber-200 shadow-2xs"
                   >
                     <Clock className="w-3.5 h-3.5 shrink-0 text-amber-600 dark:text-amber-400" />
                     <span>Daily limit reached ({limitUsed}/{MAX_DAILY_RELEASES}). Planes can fly again tomorrow.</span>
@@ -509,53 +510,57 @@ function FoldContent() {
         </div>
 
         {/* Side Panels - Layout matched with JarPage Sidebar */}
-        <div className="lg:col-span-4 space-y-6">
+        <div className="flex w-full min-w-0 flex-col gap-6 lg:col-span-4">
 
           {/* Current Mood Box (icons/colors from lib/mood.ts) */}
           <MoodPicker selectedMood={mood} onSelectMood={setMood} />
 
           {/* Ask Mimi Box */}
-          <div 
-            className="rounded-3xl border p-5 space-y-4 shadow-xs transition-colors duration-200"
-            style={{ 
-              backgroundColor: 'var(--card-bg)', 
-              borderColor: 'var(--card-border)', 
-              color: 'var(--text-main)' 
+          <div
+            className="w-full min-w-0 rounded-3xl border p-4 sm:p-5 space-y-4 shadow-xs transition-colors duration-200"
+            style={{
+              backgroundColor: 'var(--card-bg)',
+              borderColor: 'var(--card-border)',
+              color: 'var(--text-main)'
             }}
           >
-            <div className="flex items-center justify-between border-b pb-3" style={{ borderColor: 'var(--card-border)' }}>
+            <div className="flex items-center justify-between gap-2 border-b pb-3" style={{ borderColor: 'var(--card-border)' }}>
               <h2 className="text-xs font-bold tracking-wider uppercase opacity-80">Ask Mimi</h2>
-              <span className="text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40 px-2.5 py-0.5 rounded-full font-bold">
+              <span className="shrink-0 text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40 px-2.5 py-0.5 rounded-full font-bold">
                 Companion
               </span>
             </div>
 
+            {/* Scales with the container; capped so it never dominates on tablets */}
             <div className="flex justify-center py-2">
               <img
                 src="/mimi/mimi_agent.webp"
                 alt="Mimi companion"
-                className="w-36 h-36 sm:w-40 sm:h-40 object-contain drop-shadow-md select-none"
+                className="w-full max-w-36 sm:max-w-40 h-auto aspect-square object-contain drop-shadow-md select-none"
                 draggable={false}
               />
             </div>
-            
-            <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40 text-xs space-y-1.5">
-              <p className="font-bold text-emerald-900 dark:text-emerald-200">Mimi&apos;s Companion Space</p>
-              <p className="text-[11px] leading-relaxed text-emerald-800/80 dark:text-emerald-300/80">
-                Dedicated slot for your custom Mimi agent appearance, interactive companion chat widget, or reflection prompts.
-              </p>
-            </div>
 
-            <div className="p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 text-xs space-y-1.5">
-              <div className="flex items-center gap-1.5">
-                <Lightbulb className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-                <span className="text-[9px] font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md inline-block">
-                  Reflection Prompt
-                </span>
+            {/* Companion slot: full-width, min-w-0 container so a future chat widget can mount here */}
+            <div className="w-full min-w-0 space-y-4">
+              <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40 text-xs space-y-1.5">
+                <p className="font-bold text-emerald-900 dark:text-emerald-200">Mimi&apos;s Companion Space</p>
+                <p className="text-[11px] leading-relaxed text-emerald-800/80 dark:text-emerald-300/80 break-words">
+                  Dedicated slot for your custom Mimi agent appearance, interactive companion chat widget, or reflection prompts.
+                </p>
               </div>
-              <p className="text-[11px] italic font-serif leading-relaxed text-slate-700 dark:text-slate-300">
-                &quot;What is one small thing that made you pause and feel grateful today?&quot;
-              </p>
+
+              <div className="p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 text-xs space-y-1.5">
+                <div className="flex items-center gap-1.5">
+                  <Lightbulb className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
+                  <span className="text-[9px] font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md inline-block">
+                    Reflection Prompt
+                  </span>
+                </div>
+                <p className="text-[11px] italic font-serif leading-relaxed text-slate-700 dark:text-slate-300 break-words">
+                  &quot;What is one small thing that made you pause and feel grateful today?&quot;
+                </p>
+              </div>
             </div>
           </div>
 
