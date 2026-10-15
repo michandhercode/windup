@@ -5,6 +5,8 @@ import { useRouter } from 'next/navigation';
 import { useLetters } from '@/app/providers';
 import { Letter, LetterStatus } from '@/types/letter';
 import { DAILY_LIMIT_MESSAGE, getDailyReleaseStatus, tryConsumeDailyRelease } from '@/lib/daily-release';
+import { changeThoughtStatus, deleteThought } from '@/app/actions/thoughts';
+import type { ThoughtActionResult, ThoughtStatus } from '@/lib/thoughts';
 import AlertModal from '@/components/AlertModal';
 import LetterCard from '@/components/LetterCard';
 import SealedOpenConfirm from '@/components/SealedOpenConfirm';
@@ -30,9 +32,31 @@ const SHELVES: {
   { id: 'sealed', label: 'Sealed', hint: 'Locked time-capsules', icon: 'jar_seal', active: 'bg-amber-500/15 border-amber-500/40 text-amber-900 dark:text-amber-200' },
 ];
 
-export default function JarPage() {
+const RELEASE_ANIMATION_MS = 700;
+const GENERIC_ERROR = 'Something went wrong. Please try again.';
+
+interface JarPageProps {
+  /** The user's jar from Supabase (`getUserJarThoughts`), mapped to letters. */
+  initialThoughts: Letter[];
+  /** True when a Supabase session exists; otherwise the local (legacy) store is used. */
+  isAuthenticated: boolean;
+}
+
+export default function JarPage({ initialThoughts, isAuthenticated }: JarPageProps) {
   const router = useRouter();
-  const { letters, setLetters, displayName } = useLetters();
+  const { letters: localLetters, setLetters: setLocalLetters, displayName } = useLetters();
+
+  // Supabase-backed jar. Mirrors the server data and is updated optimistically so cards react instantly.
+  const [serverLetters, setServerLetters] = useState<Letter[]>(initialThoughts);
+  const [prevInitialThoughts, setPrevInitialThoughts] = useState(initialThoughts);
+  if (initialThoughts !== prevInitialThoughts) {
+    setPrevInitialThoughts(initialThoughts);
+    setServerLetters(initialThoughts);
+  }
+
+  const letters = isAuthenticated ? serverLetters : localLetters;
+  const setLetters = isAuthenticated ? setServerLetters : setLocalLetters;
+  const [errorMessage, setErrorMessage] = useState('');
   
   const [filter, setFilter] = useState<'all' | LetterStatus>('all');
   const [selectedLetter, setSelectedLetter] = useState<Letter | null>(null);
@@ -59,10 +83,28 @@ export default function JarPage() {
     setLetterToDelete(id);
   };
 
+  /** Runs a server mutation; on failure restores the previous list and tells the user. */
+  const syncToServer = async (request: Promise<ThoughtActionResult>, rollback: Letter[]) => {
+    try {
+      const result = await request;
+      if (result.success) {
+        router.refresh();
+        return;
+      }
+      setErrorMessage(result.error);
+    } catch (error) {
+      console.error(error);
+      setErrorMessage(GENERIC_ERROR);
+    }
+    setServerLetters(rollback);
+  };
+
   const handleDelete = () => {
     if (letterToDelete) {
-      setLetters(letters.filter((l: Letter) => l.id !== letterToDelete));
-      if (selectedLetter?.id === letterToDelete) setSelectedLetter(null);
+      const id = letterToDelete;
+      setLetters(letters.filter((l: Letter) => l.id !== id));
+      if (isAuthenticated) void syncToServer(deleteThought(id), letters);
+      if (selectedLetter?.id === id) setSelectedLetter(null);
       setLetterToDelete(null);
     }
   };
@@ -83,6 +125,7 @@ export default function JarPage() {
     if (!letterToOpen) return;
     const opened: Letter = { ...letterToOpen, status: 'opened' };
     setLetters(letters.map((l: Letter) => (l.id === opened.id ? opened : l)));
+    if (isAuthenticated) void syncToServer(changeThoughtStatus(opened.id, 'opened' satisfies ThoughtStatus), letters);
     setSelectedLetter(opened);
     setLetterToOpen(null);
     // TODO: send the real email notification here (e.g. POST to an email API route)
@@ -99,33 +142,52 @@ export default function JarPage() {
     setLetterToRelease(letter);
   };
 
-  const handleExecuteRelease = () => {
-    if (letterToRelease) {
-      const targetId = letterToRelease.id;
-      setLetterToRelease(null);
+  const handleExecuteRelease = async () => {
+    if (!letterToRelease) return;
 
-      // Authoritative check + count (also resets the counter on a new calendar day)
-      if (!tryConsumeDailyRelease().allowed) {
-        setIsLimitModalOpen(true);
-        return;
-      }
+    const targetId = letterToRelease.id;
+    setLetterToRelease(null);
 
-      setAnimatingLetterId(targetId);
-
-      setTimeout(() => {
-        setLetters((prev) =>
-          prev.map((l) =>
-            l.id === targetId
-              ? { ...l, visibility: 'anonymous_public' as const, status: 'released' as const }
-              : l
-          )
-        );
-        if (selectedLetter?.id === targetId) {
-          setSelectedLetter(null);
-        }
-        setAnimatingLetterId(null);
-      }, 700);
+    // Check the daily limit up front; it is only counted once the release has really succeeded
+    if (getDailyReleaseStatus().isLimitReached) {
+      setIsLimitModalOpen(true);
+      return;
     }
+
+    setAnimatingLetterId(targetId);
+
+    // The save and the fly-away animation run together
+    const [result] = await Promise.all([
+      isAuthenticated
+        ? changeThoughtStatus(targetId, 'released').catch((error): ThoughtActionResult => {
+            console.error(error);
+            return { success: false, error: GENERIC_ERROR };
+          })
+        : Promise.resolve<ThoughtActionResult>({ success: true }),
+      new Promise((resolve) => setTimeout(resolve, RELEASE_ANIMATION_MS)),
+    ]);
+
+    if (!result.success) {
+      setAnimatingLetterId(null);
+      setErrorMessage(result.error);
+      return;
+    }
+
+    // Authoritative count (also resets the counter on a new calendar day)
+    tryConsumeDailyRelease();
+
+    setLetters((prev) =>
+      prev.map((l) =>
+        l.id === targetId
+          ? { ...l, visibility: 'anonymous_public' as const, status: 'released' as const }
+          : l
+      )
+    );
+    if (selectedLetter?.id === targetId) {
+      setSelectedLetter(null);
+    }
+    setAnimatingLetterId(null);
+    if (isAuthenticated) router.refresh();
   };
 
   return (
@@ -316,6 +378,18 @@ export default function JarPage() {
         variant="warning"
         cancelLabel="Got it"
         description={DAILY_LIMIT_MESSAGE}
+      />
+
+      {/* Save / sync error */}
+      <AlertModal
+        isOpen={!!errorMessage}
+        onClose={() => setErrorMessage('')}
+        title="Something went wrong"
+        subtitle="Your jar was not changed"
+        icon={AlertTriangle}
+        variant="warning"
+        cancelLabel="Got it"
+        description={errorMessage}
       />
 
       {/* Delete Confirmation */}

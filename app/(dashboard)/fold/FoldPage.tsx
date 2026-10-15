@@ -15,13 +15,16 @@ import {
   Clock,
 } from 'lucide-react';
 import { useLetters } from '@/app/providers';
-import { Visibility } from '@/types/letter';
+import type { Letter, Visibility } from '@/types/letter';
+import { createThought } from '@/app/actions/thoughts';
+import { toThoughtStatus } from '@/lib/thoughts';
 
 import SealDatePicker from '@/components/SealDatePicker';
 import MoodPicker from '@/components/MoodPicker';
 import {
   DAILY_LIMIT_MESSAGE,
   MAX_DAILY_RELEASES,
+  getDailyReleaseStatus,
   tryConsumeDailyRelease,
   useDailyReleaseStatus,
 } from '@/lib/daily-release';
@@ -30,7 +33,24 @@ const MAX_WORDS = 1000;
 const MAX_TITLE_LENGTH = 100;
 const NOTICE_DURATION_MS = 6000;
 
-function FoldContent() {
+interface FoldContentProps {
+  /** True when a Supabase session exists: letters are saved to the `thoughts` table. */
+  isAuthenticated: boolean;
+  /** The user's saved thoughts from Supabase, used to load a draft for editing. */
+  initialThoughts: Letter[];
+}
+
+/** What the form hands to the save step (status uses the UI vocabulary: kept / sealed / released / draft). */
+interface LetterDraftPayload {
+  title: string;
+  content: string;
+  mood: string;
+  status: 'draft' | 'kept' | 'sealed' | 'released';
+  visibility: Visibility;
+  sealUntil?: string;
+}
+
+function FoldContent({ isAuthenticated, initialThoughts }: FoldContentProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const draftId = searchParams.get('draftId');
@@ -69,7 +89,7 @@ function FoldContent() {
   // Load the draft into the form once per draftId. Adjusting state during render (instead of in an
   // effect) avoids a cascading re-render; see react.dev "You Might Not Need an Effect".
   if (draftId && loadedDraftId !== draftId) {
-    const existingDraft = letters.find((l) => l.id === draftId);
+    const existingDraft = [...initialThoughts, ...letters].find((l) => l.id === draftId);
     if (existingDraft) {
       setLoadedDraftId(draftId);
       setTitle(existingDraft.title || '');
@@ -111,7 +131,35 @@ function FoldContent() {
     };
   }, []);
 
-  const handleFoldAndRelease = (
+  /**
+   * Saves a letter. Signed in with Supabase -> the `thoughts` table (via the createThought server action).
+   * Otherwise it falls back to the local provider so the app keeps working exactly as before.
+   */
+  const persistLetter = async (letter: LetterDraftPayload): Promise<{ ok: true } | { ok: false; error: string }> => {
+    if (!isAuthenticated) {
+      addLetter({ ...(draftId ? { id: draftId } : {}), ...letter });
+      return { ok: true };
+    }
+
+    try {
+      const result = await createThought({
+        // Only update a draft that actually lives in Supabase; anything else becomes a new row.
+        ...(draftId && initialThoughts.some((t) => t.id === draftId) ? { id: draftId } : {}),
+        title: letter.title,
+        content: letter.content,
+        mood: letter.mood,
+        is_private: letter.status !== 'released',
+        status: toThoughtStatus(letter.status),
+        seal_until: letter.status === 'sealed' ? letter.sealUntil : null,
+      });
+      return result.success ? { ok: true } : { ok: false, error: result.error };
+    } catch (error) {
+      console.error('Failed to save letter', error);
+      return { ok: false, error: 'We could not save your letter. Please check your connection and try again.' };
+    }
+  };
+
+  const handleFoldAndRelease = async (
     targetStatus: 'kept' | 'sealed' | 'released' = 'kept', 
     customSealDate?: string
   ) => {
@@ -138,29 +186,40 @@ function FoldContent() {
     const finalStatus = targetStatus === 'released' ? 'released' : (actualVisibility === 'anonymous_public' ? 'released' : targetStatus);
 
     // Daily limit: only an actual release into the Sky counts. The letter stays in the form if blocked.
-    if (finalStatus === 'released' && !tryConsumeDailyRelease().allowed) {
+    if (finalStatus === 'released' && getDailyReleaseStatus().isLimitReached) {
       setNoticeMessage(DAILY_LIMIT_MESSAGE);
       if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
       noticeTimeoutRef.current = setTimeout(() => setNoticeMessage(''), NOTICE_DURATION_MS);
       return;
     }
 
-    addLetter({
-      ...(draftId ? { id: draftId } : {}),
-      title: title.trim() || 'Untitled Thought',
-      content,
-      mood, 
-      status: finalStatus,
-      visibility: actualVisibility,
-      sealUntil: customSealDate || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    });
-
+    // Start the animation right away; it is undone below if saving fails.
     setIsAnimating(true);
     if (finalStatus === 'sealed') {
       setAnimType('seal');
     } else {
       setAnimType(actualVisibility === 'anonymous_public' ? 'fly' : 'fold');
     }
+
+    const saved = await persistLetter({
+      title: title.trim() || 'Untitled Thought',
+      content,
+      mood,
+      status: finalStatus,
+      visibility: actualVisibility,
+      sealUntil: customSealDate || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    });
+
+    if (!saved.ok) {
+      // Keep the letter in the form so nothing is lost
+      setIsAnimating(false);
+      setAnimType(null);
+      setErrorMessage(saved.error);
+      return;
+    }
+
+    // Count the release only once it has really been saved
+    if (finalStatus === 'released') tryConsumeDailyRelease();
 
     animTimeoutRef.current = setTimeout(() => {
       if (actualVisibility === 'anonymous_public') {
@@ -190,7 +249,7 @@ function FoldContent() {
     handleFoldAndRelease(targetStatus);
   };
 
-  const handleSaveAsDraft = () => {
+  const handleSaveAsDraft = async () => {
     if (!content.trim()) {
       setErrorMessage('Cannot save an empty draft. Please write something first.');
       return;
@@ -212,14 +271,20 @@ function FoldContent() {
     setIsAnimating(true);
     setAnimType('draft');
 
-    addLetter({
-      ...(draftId ? { id: draftId } : {}),
+    const saved = await persistLetter({
       title: title.trim() || 'Untitled Draft',
       content,
       mood,
       status: 'draft',
       visibility,
     });
+
+    if (!saved.ok) {
+      setIsAnimating(false);
+      setAnimType(null);
+      setErrorMessage(saved.error);
+      return;
+    }
 
     animTimeoutRef.current = setTimeout(() => {
       setSuccessMessage('Draft saved successfully to your jar!');
@@ -582,10 +647,10 @@ function FoldContent() {
   );
 }
 
-export default function FoldPage() {
+export default function FoldPage(props: FoldContentProps) {
   return (
     <Suspense fallback={<div className="p-8 text-center text-xs opacity-60">Loading sanctuary journal...</div>}>
-      <FoldContent />
+      <FoldContent {...props} />
     </Suspense>
   );
 }

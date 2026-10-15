@@ -6,6 +6,7 @@ import { useLetters } from '@/app/providers';
 import { ALL_MOCK_POOL, isPublicPlane, getPlaneLikes } from '@/lib/sky-planes';
 import ViewLetterModal, { LetterModalAction } from '@/components/ViewLetterModal';
 import { formatLetterDate } from '@/lib/format';
+import type { PublicThought } from '@/lib/thoughts';
 import { useIsClient, useLocalStorageItem, setLocalStorageItem } from '@/lib/hooks/useLocalStorage';
 
 const PLANES_PER_CATCH = 7;
@@ -90,7 +91,12 @@ const subscribeCompact = (onChange: () => void) => {
   return () => mq.removeEventListener('change', onChange);
 };
 
-export default function SkyPage() {
+interface SkyPageProps {
+  /** Released planes from Supabase (`getPublicThoughts`). */
+  publicThoughts: PublicThought[];
+}
+
+export default function SkyPage({ publicThoughts }: SkyPageProps) {
   const { letters, updateLetter } = useLetters();
   // Store only the id; the plane itself is derived from live data so counts never go stale.
   const [selectedPlaneId, setSelectedPlaneId] = useState<string | null>(null);
@@ -123,13 +129,27 @@ export default function SkyPage() {
       createdAt: l.createdAt,
       isUserOwner: true,
     }));
-    // Sample planes have no stored letter, so a reader's like is layered on top of the base count.
-    const samplePlanes: SkyPlane[] = ALL_MOCK_POOL.map((p) => ({
-      ...p,
-      likes: p.likes + (likedIds.includes(p.id) ? 1 : 0),
+    // Planes from the database. Readers can't write to someone else's row, so a reader's like is
+    // layered on top of the stored count (same as the sample planes).
+    const livePlanes: SkyPlane[] = publicThoughts.map((t) => ({
+      id: t.id,
+      title: t.title,
+      content: t.content,
+      mood: t.mood,
+      likes: t.likes + (likedIds.includes(t.id) ? 1 : 0),
+      createdAt: t.createdAt,
+      isUserOwner: t.isOwner,
     }));
-    return [...userPlanes, ...samplePlanes];
-  }, [letters, likedIds]);
+    // Sample planes only keep an otherwise empty sky from looking bare; real planes replace them.
+    const samplePlanes: SkyPlane[] =
+      livePlanes.length > 0
+        ? []
+        : ALL_MOCK_POOL.map((p) => ({
+            ...p,
+            likes: p.likes + (likedIds.includes(p.id) ? 1 : 0),
+          }));
+    return [...userPlanes, ...livePlanes, ...samplePlanes];
+  }, [letters, likedIds, publicThoughts]);
 
   const selectedPlane = selectedPlaneId ? masterPool.find((p) => p.id === selectedPlaneId) ?? null : null;
   const isLiked = !!selectedPlane && likedIds.includes(selectedPlane.id);

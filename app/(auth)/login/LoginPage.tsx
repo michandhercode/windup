@@ -2,19 +2,27 @@
 
 import { useState } from 'react';
 import Link from 'next/link';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import FieldError, { getAuthInputClass } from '@/components/FieldError';
 import { validateEmail, validatePassword } from '@/lib/validation';
+import { createClient } from '@/utils/supabase/client';
+import { getAuthErrorMessage, syncProfileFromUser } from '@/lib/auth-client';
 
 export default function LoginPage() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [error, setError] = useState('');
+  const router = useRouter();
+  const searchParams = useSearchParams();
+  // /auth/callback sends people here when an emailed confirmation link is invalid or expired
+  const [error, setError] = useState(() =>
+    searchParams.get('error') === 'confirmation_failed'
+      ? 'That confirmation link is invalid or has expired. Please sign in, or sign up again.'
+      : ''
+  );
   const [isLoading, setIsLoading] = useState(false);
   const [touched, setTouched] = useState({ email: false, password: false });
-  const router = useRouter();
 
   // Inline errors are derived: shown after blur/submit, and they clear as soon as the value is fixed.
   const emailError = touched.email ? validateEmail(email) : '';
@@ -30,20 +38,24 @@ export default function LoginPage() {
     setIsLoading(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      const supabase = createClient();
+      const { data, error: signInError } = await supabase.auth.signInWithPassword({
+        email: email.trim(),
+        password,
+      });
 
-      const cleanEmail = email.trim();
-      const emailPrefix = cleanEmail.split('@')[0];
-      const formattedName = emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1);
+      if (signInError || !data.user) {
+        setError(getAuthErrorMessage(signInError?.code, 'Invalid email or password. Please try again.'));
+        setIsLoading(false);
+        return;
+      }
 
-      localStorage.setItem('windup_user_email', cleanEmail);
-      localStorage.setItem('windup_display_name', formattedName);
-
-      window.dispatchEvent(new Event('windup_profile_updated'));
+      syncProfileFromUser(data.user, { overwriteName: true });
 
       router.push('/jar');
+      router.refresh();
     } catch {
-      setError('Invalid email or password. Please try again.');
+      setError('We could not reach the server. Please check your connection and try again.');
       setIsLoading(false);
     }
   };

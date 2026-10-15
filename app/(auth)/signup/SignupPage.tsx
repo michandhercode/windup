@@ -6,6 +6,8 @@ import { useRouter } from 'next/navigation';
 import { User, Lock, Mail, ArrowRight, Sparkles, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import FieldError, { getAuthInputClass } from '@/components/FieldError';
 import { validateDisplayName, validateEmail, validatePassword } from '@/lib/validation';
+import { createClient } from '@/utils/supabase/client';
+import { getAuthErrorMessage, syncProfileFromUser } from '@/lib/auth-client';
 
 export default function SignupPage() {
   const [name, setName] = useState('');
@@ -13,6 +15,8 @@ export default function SignupPage() {
   const [password, setPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [error, setError] = useState('');
+  // Shown when Supabase requires the email to be confirmed before the first sign-in
+  const [notice, setNotice] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [touched, setTouched] = useState({ name: false, email: false, password: false });
   const router = useRouter();
@@ -25,6 +29,7 @@ export default function SignupPage() {
   const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
+    setNotice('');
 
     setTouched({ name: true, email: true, password: true });
     if (validateDisplayName(name) || validateEmail(email) || validatePassword(password)) return;
@@ -34,16 +39,40 @@ export default function SignupPage() {
     setIsLoading(true);
 
     try {
-      await new Promise((resolve) => setTimeout(resolve, 800));
+      const supabase = createClient();
+      const { data, error: signUpError } = await supabase.auth.signUp({
+        email: email.trim(),
+        password,
+        options: {
+          // Saved on the user, so the name follows the account to any device
+          data: { display_name: trimmedName },
+          emailRedirectTo: `${window.location.origin}/auth/callback`,
+        },
+      });
 
-      localStorage.setItem('windup_display_name', trimmedName);
-      localStorage.setItem('windup_user_email', email.trim());
-      localStorage.setItem('windup_member_since', new Date().toISOString());
-      localStorage.setItem('windup_user', JSON.stringify({ name: trimmedName, email: email.trim() }));
+      // With email confirmation on, Supabase hides "already registered" by returning a user with no identities
+      const alreadyRegistered = !!data.user && data.user.identities?.length === 0;
+      if (signUpError || !data.user || alreadyRegistered) {
+        setError(
+          alreadyRegistered
+            ? getAuthErrorMessage('user_already_exists', '')
+            : getAuthErrorMessage(signUpError?.code, 'Something went wrong while creating your account. Please try again.')
+        );
+        setIsLoading(false);
+        return;
+      }
 
-      window.dispatchEvent(new Event('windup_profile_updated'));
+      // Email confirmation required: there is no session yet
+      if (!data.session) {
+        setNotice(`We sent a confirmation link to ${email.trim()}. Open it to finish creating your account, then sign in.`);
+        setIsLoading(false);
+        return;
+      }
+
+      syncProfileFromUser(data.user, { overwriteName: true });
 
       router.push('/jar');
+      router.refresh();
     } catch {
       setError('Something went wrong while creating your account. Please try again.');
       setIsLoading(false);
@@ -82,6 +111,17 @@ export default function SignupPage() {
           <div className="bg-rose-50 dark:bg-rose-950/80 border border-rose-200 dark:border-rose-800 text-rose-900 dark:text-rose-200 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200">
             <AlertCircle className="w-4 h-4 text-rose-600 dark:text-rose-400 shrink-0" />
             <span>{error}</span>
+          </div>
+        )}
+
+        {/* Confirmation Notice */}
+        {notice && (
+          <div
+            role="status"
+            className="bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200 px-4 py-3 rounded-2xl text-xs font-semibold flex items-center gap-2 animate-in fade-in slide-in-from-top-2 duration-200"
+          >
+            <Mail className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <span>{notice}</span>
           </div>
         )}
 

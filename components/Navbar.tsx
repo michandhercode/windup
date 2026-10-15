@@ -4,7 +4,9 @@ import { useState, useRef, useEffect } from 'react';
 import Link from 'next/link';
 import { useRouter, usePathname } from 'next/navigation';
 import { useTheme } from 'next-themes';
-import { useIsClient, useLocalStorageItem, removeLocalStorageItem } from '@/lib/hooks/useLocalStorage';
+import { useIsClient, useLocalStorageItem } from '@/lib/hooks/useLocalStorage';
+import { createClient } from '@/utils/supabase/client';
+import { clearLocalProfile } from '@/lib/auth-client';
 import { LogOut, Moon, Sun, LogIn, Eye, Menu, X, Settings, type LucideIcon } from 'lucide-react';
 
 interface NavLink {
@@ -73,12 +75,16 @@ export default function Navbar() {
     setTheme(isDark ? 'light' : 'dark');
   };
 
-  const handleLogout = () => {
+  const handleLogout = async () => {
     setIsDropdownOpen(false);
-    removeLocalStorageItem('windup_is_guest');
-    removeLocalStorageItem('windup_user_email');
-    removeLocalStorageItem('windup_display_name');
+    try {
+      await createClient().auth.signOut();
+    } catch (error) {
+      console.error('Sign out failed', error);
+    }
+    clearLocalProfile();
     router.push('/');
+    router.refresh();
   };
 
   const allNavLinks: NavLink[] = [
