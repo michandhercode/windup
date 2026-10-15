@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Settings, User, Database, Download, CheckCircle, AlertCircle, Info, Mail, FileText, X, Send, Bell } from 'lucide-react';
+import { Settings, User, Database, Download, CheckCircle, AlertCircle, Info, Mail, FileText, X, Send, Bell, Lock } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 import { useLocalStorageItem } from '@/lib/hooks/useLocalStorage';
 
@@ -15,15 +15,14 @@ export default function SettingsPage() {
   const savedNotifications = useLocalStorageItem('windup_email_notifications');
 
   const [nameDraft, setNameDraft] = useState<string | null>(null);
-  const [emailDraft, setEmailDraft] = useState<string | null>(null);
   const [notificationsDraft, setNotificationsDraft] = useState<boolean | null>(null);
 
   const displayName = nameDraft ?? (savedName || 'Anonymous');
-  const email = emailDraft ?? (savedEmail || 'scribe@windup.app');
+  // Read-only: the email comes from the signed-in account and cannot be edited on this page.
+  const email = savedEmail || 'scribe@windup.app';
   const emailNotifications = notificationsDraft ?? (savedNotifications === null ? true : savedNotifications === 'true');
 
   const setDisplayName = (value: string) => setNameDraft(value);
-  const setEmail = (value: string) => setEmailDraft(value);
   const setEmailNotifications = (value: boolean) => setNotificationsDraft(value);
 
   const [savedSuccess, setSavedSuccess] = useState(false);
@@ -72,15 +71,11 @@ export default function SettingsPage() {
       return;
     }
 
-    const trimmedEmail = email.trim();
-
-    // Save profile settings to localStorage
+    // Save profile settings to localStorage (the email is read-only here, so it is never written)
     localStorage.setItem('windup_display_name', trimmedName);
-    localStorage.setItem('windup_user_email', trimmedEmail);
     localStorage.setItem('windup_email_notifications', emailNotifications.toString());
     
     setDisplayName(trimmedName);
-    setEmail(trimmedEmail);
 
     // Notify other components of profile updates
     window.dispatchEvent(new Event('windup_profile_updated'));
@@ -183,21 +178,25 @@ export default function SettingsPage() {
               )}
             </div>
 
-            {/* Email Input */}
+            {/* Email Address (read-only) */}
             <div className="space-y-1.5">
-              <label htmlFor="email" className="text-xs font-semibold text-slate-600 dark:text-slate-300">
-                Email Address
+              <label htmlFor="email" className="text-xs font-semibold text-slate-600 dark:text-slate-300 flex items-center justify-between">
+                <span>Email Address</span>
+                <span className="inline-flex items-center gap-1 text-[10px] text-slate-400 font-normal">
+                  <Lock className="w-3 h-3" aria-hidden="true" />
+                  Read-only
+                </span>
               </label>
               <input
                 id="email"
                 type="email"
                 value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="scribe@windup.app"
-                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-medium focus:ring-2 focus:ring-sky-400 focus:outline-none transition-all"
+                readOnly
+                aria-readonly="true"
+                className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-xs font-medium cursor-not-allowed select-all focus:outline-none"
               />
               <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-snug">
-                Used for support responses, account security, and paper plane notifications.
+                Used for support responses, account security, and paper plane notifications. Your email is tied to your account and cannot be changed here.
               </p>
             </div>
           </div>

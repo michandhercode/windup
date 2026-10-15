@@ -7,7 +7,6 @@ import {
   Lock,
   Eye,
   ChevronDown,
-  Lightbulb,
   Archive,
   FileText,
   AlertCircle,
@@ -21,6 +20,7 @@ import { toThoughtStatus } from '@/lib/thoughts';
 
 import SealDatePicker from '@/components/SealDatePicker';
 import MoodPicker from '@/components/MoodPicker';
+import MimiPanel from '@/components/MimiPanel';
 import { useToast } from '@/components/Toast';
 import {
   DAILY_LIMIT_MESSAGE,
@@ -591,54 +591,8 @@ function FoldContent({ isAuthenticated, initialThoughts }: FoldContentProps) {
           {/* Current Mood Box (icons/colors from lib/mood.ts) */}
           <MoodPicker selectedMood={mood} onSelectMood={setMood} />
 
-          {/* Ask Mimi Box */}
-          <div
-            className="w-full min-w-0 rounded-3xl border p-4 sm:p-5 space-y-4 shadow-xs transition-colors duration-200"
-            style={{
-              backgroundColor: 'var(--card-bg)',
-              borderColor: 'var(--card-border)',
-              color: 'var(--text-main)'
-            }}
-          >
-            <div className="flex items-center justify-between gap-2 border-b pb-3" style={{ borderColor: 'var(--card-border)' }}>
-              <h2 className="text-xs font-bold tracking-wider uppercase opacity-80">Ask Mimi</h2>
-              <span className="shrink-0 text-[10px] bg-emerald-500/10 text-emerald-700 dark:text-emerald-300 border border-emerald-300/40 px-2.5 py-0.5 rounded-full font-bold">
-                Companion
-              </span>
-            </div>
-
-            {/* Scales with the container; capped so it never dominates on tablets */}
-            <div className="flex justify-center py-2">
-              <img
-                src="/mimi/mimi_agent.webp"
-                alt="Mimi companion"
-                className="w-full max-w-36 sm:max-w-40 h-auto aspect-square object-contain drop-shadow-md select-none"
-                draggable={false}
-              />
-            </div>
-
-            {/* Companion slot: full-width, min-w-0 container so a future chat widget can mount here */}
-            <div className="w-full min-w-0 space-y-4">
-              <div className="p-3.5 rounded-2xl bg-emerald-50/50 dark:bg-emerald-950/20 border border-emerald-200/60 dark:border-emerald-900/40 text-xs space-y-1.5">
-                <p className="font-bold text-emerald-900 dark:text-emerald-200">Mimi&apos;s Companion Space</p>
-                <p className="text-[11px] leading-relaxed text-emerald-800/80 dark:text-emerald-300/80 break-words">
-                  Dedicated slot for your custom Mimi agent appearance, interactive companion chat widget, or reflection prompts.
-                </p>
-              </div>
-
-              <div className="p-3.5 rounded-2xl bg-amber-50/60 dark:bg-amber-950/20 border border-amber-200/60 dark:border-amber-900/40 text-xs space-y-1.5">
-                <div className="flex items-center gap-1.5">
-                  <Lightbulb className="w-3.5 h-3.5 text-amber-500 dark:text-amber-400" />
-                  <span className="text-[9px] font-extrabold uppercase tracking-wider text-amber-800 dark:text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-md inline-block">
-                    Reflection Prompt
-                  </span>
-                </div>
-                <p className="text-[11px] italic font-serif leading-relaxed text-slate-700 dark:text-slate-300 break-words">
-                  &quot;What is one small thing that made you pause and feel grateful today?&quot;
-                </p>
-              </div>
-            </div>
-          </div>
+          {/* Ask Mimi Box (AI companion chat, see components/MimiPanel.tsx) */}
+          <MimiPanel isAuthenticated={isAuthenticated} />
 
         </div>
 
