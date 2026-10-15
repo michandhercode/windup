@@ -87,6 +87,17 @@ async function readGuestId(): Promise<string | null> {
   return value && UUID_PATTERN.test(value) ? value : null
 }
 
+/**
+ * True when this browser still carries a Supabase login cookie. If the server cannot confirm that session
+ * (expired / invalid), the person must sign in again: they must never be silently treated as a guest.
+ * (The PKCE `-code-verifier` cookie only exists during sign-up / email confirmation, so it does not count.)
+ */
+async function hasSupabaseSessionCookie(): Promise<boolean> {
+  return (await cookies())
+    .getAll()
+    .some((cookie) => cookie.name.startsWith('sb-') && cookie.name.includes('-auth-token') && !cookie.name.endsWith('-code-verifier'))
+}
+
 function revalidateThoughtPages() {
   revalidatePath('/') // the welcome page shows the number of planes in the sky
   revalidatePath('/jar')
@@ -139,7 +150,9 @@ export async function createThought(data: CreateThoughtInput): Promise<CreateTho
 
 // 2. Public Paper Planes (The Sky feed). Reads a safe view, so the author's id is never exposed.
 export async function getPublicThoughts(): Promise<PublicThought[]> {
-  const [supabase, userId, guestId] = await Promise.all([createClient(), getAuthUserId(), readGuestId()])
+  const [supabase, userId] = await Promise.all([createClient(), getAuthUserId()])
+  // A signed-in reader is identified by the account only; the guest cookie is for signed-out visitors.
+  const guestId = userId ? null : await readGuestId()
 
   // The feed, "which planes are mine?" and "which have I liked?" are independent, so they run at the same time.
   const [{ data, error }, mine, liked] = await Promise.all([
@@ -253,14 +266,21 @@ export async function deleteThought(id: string): Promise<ThoughtActionResult> {
 
 // 6. Like (or unlike) a released plane. Works for signed-in users and for guests, on your own planes too.
 //    The database keeps one like per person per plane and returns the real total.
+//    A signed-in user is ALWAYS identified by their Supabase account (auth.uid() inside the database function);
+//    the guest cookie is only ever read or created when there is no login at all.
 export async function toggleThoughtLike(thoughtId: string): Promise<ToggleLikeResult> {
   if (!UUID_PATTERN.test(thoughtId)) return { success: false, error: 'This plane cannot be liked.' }
 
   const userId = await getAuthUserId()
 
-  // Guests are identified by a random id kept in a cookie (created on their first like)
   let guestId: string | null = null
   if (!userId) {
+    // A login cookie exists but the server cannot confirm it: ask to sign in again instead of liking as a guest.
+    if (await hasSupabaseSessionCookie()) {
+      return { success: false, error: 'Your session has expired. Please sign in again to like planes.' }
+    }
+
+    // Truly signed out: guests are identified by a random id kept in a cookie (created on their first like)
     guestId = await readGuestId()
     if (!guestId) {
       guestId = crypto.randomUUID()
@@ -275,6 +295,7 @@ export async function toggleThoughtLike(thoughtId: string): Promise<ToggleLikeRe
   }
 
   const supabase = await createClient()
+  // Signed in: p_guest_id is null, so the database can only use auth.uid(). Signed out: the guest id.
   const { data, error } = await supabase.rpc('toggle_thought_like', { p_thought_id: thoughtId, p_guest_id: guestId })
   const row = (data as { liked: boolean; likes: number }[] | null)?.[0]
 
@@ -282,7 +303,9 @@ export async function toggleThoughtLike(thoughtId: string): Promise<ToggleLikeRe
     return failure('toggleThoughtLike', 'We could not save your like. Please try again.', error, 'no result row')
   }
 
-  // The owner's Sent Planes must show the new total; The Sky already has it from this result.
+  // Refresh the cached pages so the new total and this reader's liked state show up everywhere:
+  // The Sky (hearts and counts) and the owner's Sent Planes (their plane's like total).
+  revalidatePath('/sky')
   revalidatePath('/sent-planes')
   return { success: true, liked: row.liked, likes: row.likes }
 }

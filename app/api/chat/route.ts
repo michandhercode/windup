@@ -19,7 +19,7 @@ const MODEL_CHAIN = (process.env.GEMINI_MODELS ?? 'gemini-3.8-flash,gemini-3.6-f
   .map((id) => id.trim())
   .filter(Boolean);
 
-const MAX_MESSAGES = 20; // only the most recent turns are sent to the model
+const MAX_MESSAGES = 6; // only the most recent turns are sent to the model
 const MAX_TEXT_LENGTH = 6000; // per docs/4_API_ROUTES.md: Mimi text 1–6,000 characters
 
 // Replies stay short because the system prompt asks for it, not because of this limit. The limit is generous on
