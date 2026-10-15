@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Calendar, Heart, Trash2, BookmarkCheck, Send, AlertTriangle } from 'lucide-react';
 import { useLetters } from '@/app/providers';
@@ -11,6 +11,7 @@ import { getPlaneLikes } from '@/lib/sky-planes';
 import { DAILY_LIMIT_MESSAGE, MAX_DAILY_RELEASES, useDailyReleaseStatus } from '@/lib/daily-release';
 import { changeThoughtStatus, deleteThought } from '@/app/actions/thoughts';
 import type { PublicThought, ThoughtActionResult } from '@/lib/thoughts';
+import { createClient } from '@/utils/supabase/client';
 
 interface SentPlane {
   id: string;
@@ -45,6 +46,40 @@ export default function SentPlanesPage({ publicThoughts, isAuthenticated }: Sent
     setPrevPublicThoughts(publicThoughts);
     setServerPlanes(ownPlanes(publicThoughts));
   }
+
+  // Live likes: while this page is open, Supabase Realtime tells us when one of YOUR planes changes
+  // (a like or unlike from anyone), so the "Resonated" numbers update without a reload.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const supabase = createClient();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
+
+    void supabase.auth.getSession().then(({ data }) => {
+      const userId = data.session?.user.id;
+      if (cancelled || !userId) return;
+
+      channel = supabase
+        .channel(`sent-planes-likes-${userId}`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'thoughts', filter: `user_id=eq.${userId}` },
+          (payload) => {
+            const row = payload.new as { id?: string; likes?: number };
+            if (!row.id || typeof row.likes !== 'number') return;
+            const { id, likes } = row;
+            setServerPlanes((prev) => prev.map((p) => (p.id === id ? { ...p, likes } : p)));
+          }
+        )
+        .subscribe();
+    });
+
+    return () => {
+      cancelled = true;
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated]);
 
   /** Removes a plane from the Sky list right away, then saves; restores the list if saving fails. */
   const removeOnServer = async (id: string, request: Promise<ThoughtActionResult>) => {

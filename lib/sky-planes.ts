@@ -15,6 +15,16 @@ export const getPlaneLikes = (letter?: PlaneLikeInput | null): number => {
 export const isPublicPlane = (l: Letter) =>
   l.visibility === 'anonymous_public' || l.status === 'released';
 
+/**
+ * Sample planes only keep an otherwise EMPTY sky from looking bare; once real planes exist they are not shown.
+ * The Sky page and the Landing counter both use these two helpers, so the number always matches what is shown.
+ */
+export const shouldShowSamplePlanes = (livePlaneCount: number) => livePlaneCount === 0;
+
+/** Total planes in the sky: your local public planes + released planes in the database (+ samples if none). */
+export const countSkyPlanes = (livePlaneCount: number, localPlaneCount: number) =>
+  localPlaneCount + livePlaneCount + (shouldShowSamplePlanes(livePlaneCount) ? ALL_MOCK_POOL.length : 0);
+
 export const ALL_MOCK_POOL = [
   { id: 'm1', title: 'The morning sun...', content: 'Waking up early to watch the sunrise changed my entire mood today. Simple things matter.', mood: 'hopeful', likes: 12, createdAt: new Date().toISOString(), isUserOwner: false },
   { id: 'm2', title: 'A quiet reminder...', content: 'It is okay to rest when you are tired. You do not have to earn your right to breathe.', mood: 'peaceful', likes: 25, createdAt: new Date().toISOString(), isUserOwner: false },

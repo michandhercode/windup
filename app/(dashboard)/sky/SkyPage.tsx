@@ -1,12 +1,14 @@
 'use client';
 
-import { useState, useMemo, useSyncExternalStore } from 'react';
+import { useState, useMemo, useRef, useSyncExternalStore } from 'react';
 import { Heart, CheckCircle2, FoldHorizontal, UserCheck } from 'lucide-react';
 import { useLetters } from '@/app/providers';
-import { ALL_MOCK_POOL, isPublicPlane, getPlaneLikes } from '@/lib/sky-planes';
+import { ALL_MOCK_POOL, isPublicPlane, getPlaneLikes, shouldShowSamplePlanes } from '@/lib/sky-planes';
 import ViewLetterModal, { LetterModalAction } from '@/components/ViewLetterModal';
 import { formatLetterDate } from '@/lib/format';
 import type { PublicThought } from '@/lib/thoughts';
+import { toggleThoughtLike } from '@/app/actions/thoughts';
+import { useToast } from '@/components/Toast';
 import { useIsClient, useLocalStorageItem, setLocalStorageItem } from '@/lib/hooks/useLocalStorage';
 
 const PLANES_PER_CATCH = 7;
@@ -19,6 +21,10 @@ interface SkyPlane {
   likes: number;
   createdAt: string;
   isUserOwner: boolean;
+  /** 'live' = saved in the database (likes are shared and persisted); the others keep likes on this device. */
+  source: 'live' | 'local' | 'sample';
+  /** Whether this reader has liked it. */
+  liked: boolean;
 }
 
 interface PlanePlacement {
@@ -119,6 +125,18 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
   const rawLikedIds = useLocalStorageItem(LIKED_PLANES_KEY);
   const likedIds = useMemo(() => parseIds(rawLikedIds), [rawLikedIds]);
 
+  const toast = useToast();
+
+  // Likes on database planes: shown instantly, then replaced by the real total the server returns.
+  // Cleared whenever fresh server data arrives, because that data is then the source of truth.
+  const [likeOverrides, setLikeOverrides] = useState<Record<string, { liked: boolean; likes: number }>>({});
+  const [prevPublicThoughts, setPrevPublicThoughts] = useState(publicThoughts);
+  if (publicThoughts !== prevPublicThoughts) {
+    setPrevPublicThoughts(publicThoughts);
+    setLikeOverrides({});
+  }
+  const pendingLikeIds = useRef(new Set<string>());
+
   const masterPool: SkyPlane[] = useMemo(() => {
     const userPlanes: SkyPlane[] = letters.filter(isPublicPlane).map((l) => ({
       id: l.id,
@@ -128,31 +146,39 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
       likes: getPlaneLikes(l), // your own planes: the count stored on the letter
       createdAt: l.createdAt,
       isUserOwner: true,
+      source: 'local',
+      liked: likedIds.includes(l.id),
     }));
     // Planes from the database. Readers can't write to someone else's row, so a reader's like is
     // layered on top of the stored count (same as the sample planes).
-    const livePlanes: SkyPlane[] = publicThoughts.map((t) => ({
-      id: t.id,
-      title: t.title,
-      content: t.content,
-      mood: t.mood,
-      likes: t.likes + (likedIds.includes(t.id) ? 1 : 0),
-      createdAt: t.createdAt,
-      isUserOwner: t.isOwner,
-    }));
+    const livePlanes: SkyPlane[] = publicThoughts.map((t) => {
+      const override = likeOverrides[t.id];
+      return {
+        id: t.id,
+        title: t.title,
+        content: t.content,
+        mood: t.mood,
+        likes: override?.likes ?? t.likes,
+        createdAt: t.createdAt,
+        isUserOwner: t.isOwner,
+        source: 'live',
+        liked: override?.liked ?? t.likedByMe,
+      };
+    });
     // Sample planes only keep an otherwise empty sky from looking bare; real planes replace them.
-    const samplePlanes: SkyPlane[] =
-      livePlanes.length > 0
-        ? []
-        : ALL_MOCK_POOL.map((p) => ({
+    const samplePlanes: SkyPlane[] = !shouldShowSamplePlanes(livePlanes.length)
+      ? []
+      : ALL_MOCK_POOL.map((p) => ({
             ...p,
             likes: p.likes + (likedIds.includes(p.id) ? 1 : 0),
+            source: 'sample' as const,
+            liked: likedIds.includes(p.id),
           }));
     return [...userPlanes, ...livePlanes, ...samplePlanes];
-  }, [letters, likedIds, publicThoughts]);
+  }, [letters, likedIds, publicThoughts, likeOverrides]);
 
   const selectedPlane = selectedPlaneId ? masterPool.find((p) => p.id === selectedPlaneId) ?? null : null;
-  const isLiked = !!selectedPlane && likedIds.includes(selectedPlane.id);
+  const isLiked = !!selectedPlane?.liked;
 
   const totalPlanesCount = masterPool.length;
   
@@ -180,7 +206,38 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
     [batch.length, isCompact, seed]
   );
 
-  const handleToggleLike = (plane: SkyPlane) => {
+  const handleToggleLike = async (plane: SkyPlane) => {
+    // Planes saved in the database: the like is stored there (one per person) and counted for everyone
+    if (plane.source === 'live') {
+      if (pendingLikeIds.current.has(plane.id)) return; // ignore double clicks while saving
+      pendingLikeIds.current.add(plane.id);
+
+      const before = { liked: plane.liked, likes: plane.likes };
+      const nextLiked = !plane.liked;
+      setLikeOverrides((prev) => ({
+        ...prev,
+        [plane.id]: { liked: nextLiked, likes: Math.max(0, plane.likes + (nextLiked ? 1 : -1)) },
+      }));
+
+      try {
+        const result = await toggleThoughtLike(plane.id);
+        if (result.success) {
+          setLikeOverrides((prev) => ({ ...prev, [plane.id]: { liked: result.liked, likes: result.likes } }));
+        } else {
+          setLikeOverrides((prev) => ({ ...prev, [plane.id]: before }));
+          toast.error(result.error);
+        }
+      } catch (error) {
+        console.error(error);
+        setLikeOverrides((prev) => ({ ...prev, [plane.id]: before }));
+        toast.error('We could not save your like. Please check your connection and try again.');
+      } finally {
+        pendingLikeIds.current.delete(plane.id);
+      }
+      return;
+    }
+
+    // Local and sample planes (not in the database): likes stay on this device
     const wasLiked = likedIds.includes(plane.id);
     const nextLikedIds = wasLiked ? likedIds.filter((id) => id !== plane.id) : [...likedIds, plane.id];
     setLocalStorageItem(LIKED_PLANES_KEY, JSON.stringify(nextLikedIds));

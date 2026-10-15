@@ -3,12 +3,17 @@
 import { createClient } from '@/utils/supabase/server'
 import { getAuthUserId } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
+import { cookies } from 'next/headers'
 import { toMood } from '@/lib/mood'
-import type { PublicThought, ThoughtActionResult, ThoughtRow, ThoughtStatus } from '@/lib/thoughts'
+import type { PublicThought, ThoughtActionResult, ThoughtRow, ThoughtStatus, ToggleLikeResult } from '@/lib/thoughts'
 
 const MAX_TITLE_LENGTH = 120
 const MAX_CONTENT_LENGTH = 10_000
 const PUBLIC_FEED_LIMIT = 100
+// Guests have no account, so the server gives each browser a random id (httpOnly cookie) to tell likes apart.
+const GUEST_COOKIE = 'windup_guest_id'
+const GUEST_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
+const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export interface CreateThoughtInput {
   /** Provide to update an existing thought you own (e.g. a draft being edited) instead of inserting. */
@@ -28,7 +33,62 @@ export type CreateThoughtResult =
 
 const UNAUTHENTICATED = { success: false, error: 'Please sign in to continue.', code: 'UNAUTHENTICATED' } as const
 
+interface DatabaseError {
+  code?: string
+  message?: string
+  details?: string | null
+  hint?: string | null
+}
+
+const isDevelopment = process.env.NODE_ENV !== 'production'
+
+/**
+ * Logs the full database error on the server and returns the message shown to the user.
+ * In development the real cause (Postgres code + message) is appended, so a failure is diagnosable from
+ * the toast / modal itself. In production users only see the friendly sentence.
+ */
+function failure(context: string, friendly: string, error: DatabaseError | null, note?: string): { success: false; error: string } {
+  console.error(`[thoughts] ${context} failed`, {
+    code: error?.code,
+    message: error?.message,
+    details: error?.details,
+    hint: error?.hint,
+    note,
+  })
+
+  let reason = friendly
+  switch (error?.code) {
+    case '23514': // check_violation
+    case '22P02': // invalid_text_representation (e.g. a status the database does not know)
+      reason = 'This change is not allowed by the database rules. Please run supabase/schema.sql in Supabase.'
+      break
+    case '42501': // insufficient_privilege (row level security)
+      reason = 'The database refused this change (permissions). Please check the Row Level Security policies.'
+      break
+    case 'PGRST202': // PostgREST: function not found in schema cache
+    case '42883': // undefined_function
+      reason = 'The likes feature is not set up in the database. Please run supabase/likes.sql in Supabase.'
+      break
+    case 'P0002': // plane not found / not public
+      reason = 'This plane is no longer in the sky.'
+      break
+    case '42703': // undefined_column
+    case 'PGRST204': // PostgREST: column not found in schema cache
+      reason = 'The database is missing a column. Please run supabase/schema.sql in Supabase.'
+      break
+  }
+
+  const detail = error ? `${error.code ?? 'error'}: ${error.message}` : note
+  return { success: false, error: isDevelopment && detail ? `${reason} [${detail}]` : reason }
+}
+
+async function readGuestId(): Promise<string | null> {
+  const value = (await cookies()).get(GUEST_COOKIE)?.value
+  return value && UUID_PATTERN.test(value) ? value : null
+}
+
 function revalidateThoughtPages() {
+  revalidatePath('/') // the welcome page shows the number of planes in the sky
   revalidatePath('/jar')
   revalidatePath('/sky')
   revalidatePath('/sent-planes')
@@ -68,8 +128,7 @@ export async function createThought(data: CreateThoughtInput): Promise<CreateTho
   const { data: thought, error } = await query.select().single()
 
   if (error) {
-    console.error('Error saving thought:', error)
-    return { success: false, error: 'We could not save your letter. Please try again.' }
+    return failure('createThought', 'We could not save your letter. Please try again.', error, `status=${data.status}`)
   }
 
   // Refresh page cache to reflect the new data immediately
@@ -80,10 +139,10 @@ export async function createThought(data: CreateThoughtInput): Promise<CreateTho
 
 // 2. Public Paper Planes (The Sky feed). Reads a safe view, so the author's id is never exposed.
 export async function getPublicThoughts(): Promise<PublicThought[]> {
-  const [supabase, userId] = await Promise.all([createClient(), getAuthUserId()])
+  const [supabase, userId, guestId] = await Promise.all([createClient(), getAuthUserId(), readGuestId()])
 
-  // The feed and "which planes are mine?" are independent, so they run at the same time.
-  const [{ data, error }, mine] = await Promise.all([
+  // The feed, "which planes are mine?" and "which have I liked?" are independent, so they run at the same time.
+  const [{ data, error }, mine, liked] = await Promise.all([
     supabase
       .from('public_thoughts')
       .select('id, title, content, mood, likes, created_at')
@@ -92,6 +151,7 @@ export async function getPublicThoughts(): Promise<PublicThought[]> {
     userId
       ? supabase.from('thoughts').select('id').eq('user_id', userId).eq('status', 'released')
       : Promise.resolve({ data: null }),
+    supabase.rpc('liked_thought_ids', { p_guest_id: guestId }),
   ])
 
   if (error) {
@@ -102,6 +162,10 @@ export async function getPublicThoughts(): Promise<PublicThought[]> {
   // RLS only returns the caller's own rows in the second query.
   const ownedIds = new Set((mine.data ?? []).map((row: { id: string }) => row.id))
 
+  // Never break the sky over hearts: if the likes feature isn't installed yet, planes just show as not liked.
+  if (liked.error) console.error('[thoughts] liked_thought_ids failed', { code: liked.error.code, message: liked.error.message })
+  const likedIds = new Set<string>((liked.data as string[] | null) ?? [])
+
   return (data ?? []).map((row) => ({
     id: row.id as string,
     title: (row.title as string | null) || 'Untitled Thought',
@@ -110,6 +174,7 @@ export async function getPublicThoughts(): Promise<PublicThought[]> {
     likes: (row.likes as number | null) ?? 0,
     createdAt: row.created_at as string,
     isOwner: ownedIds.has(row.id as string),
+    likedByMe: likedIds.has(row.id as string),
   }))
 }
 
@@ -149,9 +214,17 @@ export async function changeThoughtStatus(id: string, status: ThoughtStatus): Pr
     .eq('user_id', userId)
     .select('id')
 
-  if (error || !data?.length) {
-    if (error) console.error('Error changing thought status:', error)
-    return { success: false, error: 'We could not update this letter. Please try again.' }
+  if (error) {
+    return failure('changeThoughtStatus', 'We could not update this letter. Please try again.', error, `status=${status}`)
+  }
+  if (!data?.length) {
+    // No error but nothing changed: the id does not belong to this user, or no UPDATE policy lets them change it
+    return failure(
+      'changeThoughtStatus',
+      'We could not update this letter. Please try again.',
+      null,
+      `0 rows updated (id=${id}, status=${status}): wrong owner or no UPDATE policy`
+    )
   }
 
   revalidateThoughtPages()
@@ -165,13 +238,51 @@ export async function deleteThought(id: string): Promise<ThoughtActionResult> {
 
   const supabase = await createClient()
 
-  const { error } = await supabase.from('thoughts').delete().eq('id', id).eq('user_id', userId)
+  const { data, error } = await supabase.from('thoughts').delete().eq('id', id).eq('user_id', userId).select('id')
 
   if (error) {
-    console.error('Error deleting thought:', error)
-    return { success: false, error: 'We could not delete this letter. Please try again.' }
+    return failure('deleteThought', 'We could not delete this letter. Please try again.', error)
+  }
+  if (!data?.length) {
+    return failure('deleteThought', 'We could not delete this letter. Please try again.', null, `0 rows deleted (id=${id}): wrong owner or no DELETE policy`)
   }
 
   revalidateThoughtPages()
   return { success: true }
+}
+
+// 6. Like (or unlike) a released plane. Works for signed-in users and for guests, on your own planes too.
+//    The database keeps one like per person per plane and returns the real total.
+export async function toggleThoughtLike(thoughtId: string): Promise<ToggleLikeResult> {
+  if (!UUID_PATTERN.test(thoughtId)) return { success: false, error: 'This plane cannot be liked.' }
+
+  const userId = await getAuthUserId()
+
+  // Guests are identified by a random id kept in a cookie (created on their first like)
+  let guestId: string | null = null
+  if (!userId) {
+    guestId = await readGuestId()
+    if (!guestId) {
+      guestId = crypto.randomUUID()
+      ;(await cookies()).set(GUEST_COOKIE, guestId, {
+        httpOnly: true,
+        sameSite: 'lax',
+        secure: process.env.NODE_ENV === 'production',
+        path: '/',
+        maxAge: GUEST_COOKIE_MAX_AGE,
+      })
+    }
+  }
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('toggle_thought_like', { p_thought_id: thoughtId, p_guest_id: guestId })
+  const row = (data as { liked: boolean; likes: number }[] | null)?.[0]
+
+  if (error || !row) {
+    return failure('toggleThoughtLike', 'We could not save your like. Please try again.', error, 'no result row')
+  }
+
+  // The owner's Sent Planes must show the new total; The Sky already has it from this result.
+  revalidatePath('/sent-planes')
+  return { success: true, liked: row.liked, likes: row.likes }
 }

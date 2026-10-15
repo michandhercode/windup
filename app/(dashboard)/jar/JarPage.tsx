@@ -6,7 +6,8 @@ import { useLetters } from '@/app/providers';
 import { Letter, LetterStatus } from '@/types/letter';
 import { DAILY_LIMIT_MESSAGE, getDailyReleaseStatus, tryConsumeDailyRelease } from '@/lib/daily-release';
 import { changeThoughtStatus, deleteThought } from '@/app/actions/thoughts';
-import type { ThoughtActionResult, ThoughtStatus } from '@/lib/thoughts';
+import { toThoughtStatus, type ThoughtActionResult } from '@/lib/thoughts';
+import { useToast } from '@/components/Toast';
 import AlertModal from '@/components/AlertModal';
 import LetterCard from '@/components/LetterCard';
 import SealedOpenConfirm from '@/components/SealedOpenConfirm';
@@ -44,6 +45,7 @@ interface JarPageProps {
 
 export default function JarPage({ initialThoughts, isAuthenticated }: JarPageProps) {
   const router = useRouter();
+  const toast = useToast();
   const { letters: localLetters, setLetters: setLocalLetters, displayName } = useLetters();
 
   // Supabase-backed jar. Mirrors the server data and is updated optimistically so cards react instantly.
@@ -66,7 +68,10 @@ export default function JarPage({ initialThoughts, isAuthenticated }: JarPagePro
   const [isLimitModalOpen, setIsLimitModalOpen] = useState(false);
   const [animatingLetterId, setAnimatingLetterId] = useState<string | null>(null);
 
-  const privateJarLetters = letters.filter((l: Letter) => l.visibility !== 'anonymous_public' && l.status !== 'released');
+  // An opened sealed letter is a kept letter. Older "opened" entries (e.g. from local storage) are shown as kept.
+  const privateJarLetters = letters
+    .filter((l: Letter) => l.visibility !== 'anonymous_public' && l.status !== 'released')
+    .map((l: Letter): Letter => (l.status === 'opened' ? { ...l, status: 'kept' } : l));
 
   const filteredLetters = privateJarLetters.filter((letter: Letter) => {
     if (filter === 'all') return true;
@@ -84,10 +89,11 @@ export default function JarPage({ initialThoughts, isAuthenticated }: JarPagePro
   };
 
   /** Runs a server mutation; on failure restores the previous list and tells the user. */
-  const syncToServer = async (request: Promise<ThoughtActionResult>, rollback: Letter[]) => {
+  const syncToServer = async (request: Promise<ThoughtActionResult>, rollback: Letter[], successMessage?: string) => {
     try {
       const result = await request;
       if (result.success) {
+        if (successMessage) toast.success(successMessage);
         router.refresh();
         return;
       }
@@ -123,9 +129,15 @@ export default function JarPage({ initialThoughts, isAuthenticated }: JarPagePro
 
   const handleConfirmOpen = () => {
     if (!letterToOpen) return;
-    const opened: Letter = { ...letterToOpen, status: 'opened' };
+    // Opening a sealed letter moves it to the Kept shelf
+    const opened: Letter = { ...letterToOpen, status: 'kept' };
+    const openedMessage = 'Letter opened and moved to your Kept shelf.';
     setLetters(letters.map((l: Letter) => (l.id === opened.id ? opened : l)));
-    if (isAuthenticated) void syncToServer(changeThoughtStatus(opened.id, 'opened' satisfies ThoughtStatus), letters);
+    if (isAuthenticated) {
+      void syncToServer(changeThoughtStatus(opened.id, toThoughtStatus('kept')), letters, openedMessage);
+    } else {
+      toast.success(openedMessage);
+    }
     setSelectedLetter(opened);
     setLetterToOpen(null);
     // TODO: send the real email notification here (e.g. POST to an email API route)
@@ -187,7 +199,10 @@ export default function JarPage({ initialThoughts, isAuthenticated }: JarPagePro
       setSelectedLetter(null);
     }
     setAnimatingLetterId(null);
-    if (isAuthenticated) router.refresh();
+
+    // Take the user to The Sky so they can see their plane right away
+    toast.success('Your paper plane has drifted softly into the sky.');
+    router.push('/sky');
   };
 
   return (

@@ -29,7 +29,14 @@ export interface PublicThought {
   createdAt: string;
   /** True when the signed-in reader wrote this plane. */
   isOwner: boolean;
+  /** True when this reader (signed in, or this guest browser) has liked the plane. */
+  likedByMe: boolean;
 }
+
+/** Result of liking / unliking a plane: the new state and the real total from the database. */
+export type ToggleLikeResult =
+  | { success: true; liked: boolean; likes: number }
+  | { success: false; error: string };
 
 /** Result shape shared by the mutation server actions. */
 export type ThoughtActionResult = { success: true } | { success: false; error: string };
@@ -45,8 +52,12 @@ export const toThoughtStatus = (status: LetterStatus): ThoughtStatus => {
   }
 };
 
-/** Database status ("folded") -> UI status ("kept"). */
-export const toLetterStatus = (status: ThoughtStatus): LetterStatus => (status === 'folded' ? 'kept' : status);
+/**
+ * Database status -> UI status. "folded" is the database name for "kept". An opened sealed letter becomes
+ * "kept" too, so rows opened before that rule existed (status "opened") also appear on the Kept shelf.
+ */
+export const toLetterStatus = (status: ThoughtStatus): LetterStatus =>
+  status === 'folded' || status === 'opened' ? 'kept' : status;
 
 /** Maps an owner's `thoughts` row onto the `Letter` shape the Jar UI already renders. */
 export const thoughtToLetter = (row: ThoughtRow): Letter => ({
