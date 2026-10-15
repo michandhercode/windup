@@ -4,6 +4,9 @@ import { useState, useEffect, useCallback } from 'react';
 import { Settings, User, Database, Download, CheckCircle, AlertCircle, Info, Mail, FileText, X, Send, Bell, Lock } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 import { useLocalStorageItem } from '@/lib/hooks/useLocalStorage';
+import { createClient } from '@/utils/supabase/client';
+import { thoughtToLetter, type ThoughtRow } from '@/lib/thoughts';
+import type { Letter } from '@/types/letter';
 
 type ModalType = 'terms' | 'privacy' | 'support' | null;
 
@@ -26,8 +29,11 @@ export default function SettingsPage() {
   const setEmailNotifications = (value: boolean) => setNotificationsDraft(value);
 
   const [savedSuccess, setSavedSuccess] = useState(false);
+  const [isSaving, setIsSaving] = useState(false);
   const [errorMsg, setErrorMsg] = useState('');
   const [exportSuccess, setExportSuccess] = useState(false);
+  const [isExporting, setIsExporting] = useState(false);
+  const [exportError, setExportError] = useState('');
   
   // Modal states
   const [activeModal, setActiveModal] = useState<ModalType>(null);
@@ -59,9 +65,11 @@ export default function SettingsPage() {
     };
   }, [activeModal, closeModal]);
 
-  const handleSaveProfile = (e: React.FormEvent) => {
+  const handleSaveProfile = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSaving) return;
     setErrorMsg('');
+    setSavedSuccess(false);
 
     const trimmedName = displayName.trim();
 
@@ -71,38 +79,97 @@ export default function SettingsPage() {
       return;
     }
 
-    // Save profile settings to localStorage (the email is read-only here, so it is never written)
-    localStorage.setItem('windup_display_name', trimmedName);
-    localStorage.setItem('windup_email_notifications', emailNotifications.toString());
-    
-    setDisplayName(trimmedName);
+    setIsSaving(true);
+    try {
+      // Persist the display name to the Supabase account (user metadata). This is the source of truth that
+      // login reads from, so the name survives logging out and back in. Only `display_name` is sent:
+      // the email is read-only here and is never part of this update.
+      const { error } = await createClient().auth.updateUser({
+        data: { display_name: trimmedName },
+      });
 
-    // Notify other components of profile updates
-    window.dispatchEvent(new Event('windup_profile_updated'));
+      if (error) {
+        setErrorMsg(
+          error.message
+            ? `Could not save your profile: ${error.message}`
+            : 'Could not save your profile. Please try again.'
+        );
+        return;
+      }
 
-    setSavedSuccess(true);
-    const timer = setTimeout(() => setSavedSuccess(false), 3000);
-    return () => clearTimeout(timer);
+      // Only mirror to localStorage after the backend save succeeded, so the UI never shows a name that was not saved.
+      localStorage.setItem('windup_display_name', trimmedName);
+      localStorage.setItem('windup_email_notifications', emailNotifications.toString());
+
+      setDisplayName(trimmedName);
+
+      // Notify other components (Navbar, etc.) of profile updates
+      window.dispatchEvent(new Event('windup_profile_updated'));
+
+      setSavedSuccess(true);
+      setTimeout(() => setSavedSuccess(false), 3000);
+    } catch {
+      setErrorMsg('Could not save your profile. Please check your connection and try again.');
+    } finally {
+      setIsSaving(false);
+    }
   };
 
-  const handleExportData = () => {
-    const exportData = {
-      profile: { displayName, email, emailNotifications },
-      letters: letters,
-      exportedAt: new Date().toISOString(),
-    };
+  /**
+   * Collects every entry the user owns. Signed-in users keep their letters in Supabase (`public.thoughts`),
+   * not in localStorage, so that table is the source for them: drafts, kept, sealed, opened and released planes.
+   * The local store is only used for guests (no Supabase session), matching how the Jar page loads its data.
+   */
+  const loadLettersForExport = async (): Promise<Letter[]> => {
+    const supabase = createClient();
+    const { data: userData } = await supabase.auth.getUser();
+    const user = userData?.user;
 
-    const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
-    const downloadAnchor = document.createElement('a');
-    downloadAnchor.setAttribute("href", dataStr);
-    downloadAnchor.setAttribute("download", `windup_sanctuary_backup_${Date.now()}.json`);
-    document.body.appendChild(downloadAnchor);
-    downloadAnchor.click();
-    downloadAnchor.remove();
+    if (!user) return letters;
 
-    setExportSuccess(true);
-    const timer = setTimeout(() => setExportSuccess(false), 3000);
-    return () => clearTimeout(timer);
+    const { data, error } = await supabase
+      .from('thoughts')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
+
+    if (error) throw error;
+
+    return ((data ?? []) as ThoughtRow[]).map(thoughtToLetter);
+  };
+
+  const handleExportData = async () => {
+    if (isExporting) return;
+    setIsExporting(true);
+    setExportError('');
+    setExportSuccess(false);
+
+    try {
+      const exportLetters = await loadLettersForExport();
+
+      const exportData = {
+        profile: { displayName, email, emailNotifications },
+        letters: exportLetters,
+        exportedAt: new Date().toISOString(),
+      };
+
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(exportData, null, 2));
+      const downloadAnchor = document.createElement('a');
+      downloadAnchor.setAttribute("href", dataStr);
+      downloadAnchor.setAttribute("download", `windup_sanctuary_backup_${Date.now()}.json`);
+      document.body.appendChild(downloadAnchor);
+      downloadAnchor.click();
+      downloadAnchor.remove();
+
+      setExportSuccess(true);
+      setTimeout(() => setExportSuccess(false), 3000);
+    } catch (error) {
+      // Never hand the user an empty backup when the real data could not be read.
+      console.error('Failed to export letters', error);
+      setExportError('Could not load your letters for export. Please try again.');
+    } finally {
+      setIsExporting(false);
+    }
   };
 
   const handleSendSupportMessage = (e: React.FormEvent) => {
@@ -239,9 +306,10 @@ export default function SettingsPage() {
             )}
             <button
               type="submit"
-              className="px-5 py-2 rounded-xl bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
+              disabled={isSaving}
+              className="px-5 py-2 rounded-xl bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-xs disabled:opacity-60 disabled:cursor-not-allowed"
             >
-              Save Profile
+              {isSaving ? 'Saving...' : 'Save Profile'}
             </button>
           </div>
         </form>
@@ -272,6 +340,11 @@ export default function SettingsPage() {
           </div>
 
           <div className="flex items-center gap-3">
+            {exportError && (
+              <span className="text-xs font-medium text-rose-500 flex items-center gap-1">
+                <AlertCircle className="w-3.5 h-3.5" /> {exportError}
+              </span>
+            )}
             {exportSuccess && (
               <span className="text-xs font-medium text-emerald-600 dark:text-emerald-400 flex items-center gap-1 animate-in fade-in">
                 <CheckCircle className="w-3.5 h-3.5" /> Downloaded successfully!
@@ -280,10 +353,11 @@ export default function SettingsPage() {
             <button
               type="button"
               onClick={handleExportData}
-              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-all active:scale-95 shadow-xs cursor-pointer"
+              disabled={isExporting}
+              className="flex items-center gap-1.5 px-4 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800/80 hover:bg-slate-100 dark:hover:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold transition-all active:scale-95 shadow-xs cursor-pointer disabled:opacity-60 disabled:cursor-not-allowed"
             >
               <Download className="w-3.5 h-3.5" />
-              Export Data
+              {isExporting ? 'Preparing...' : 'Export Data'}
             </button>
           </div>
         </div>

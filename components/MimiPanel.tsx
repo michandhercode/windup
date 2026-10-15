@@ -6,9 +6,11 @@ import { DefaultChatTransport } from 'ai';
 import { Loader2, Moon, Send } from 'lucide-react';
 import {
   getLocalStorageItem,
+  removeLocalStorageItem,
   setLocalStorageItem,
   useLocalStorageItem,
 } from '@/lib/hooks/useLocalStorage';
+import { createClient } from '@/utils/supabase/client';
 import { useNow } from '@/lib/hooks/useNow';
 import { toDateKey } from '@/lib/daily-release';
 
@@ -29,9 +31,23 @@ const COUNTER_WARN_RATIO = 0.9;
 /** How many messages a person can send to Mimi per calendar day. */
 const MAX_DAILY_MIMI_MESSAGES = 10;
 
-/** localStorage keys */
-const MIMI_DATE_KEY = 'windup_mimi_date'; // "YYYY-MM-DD" (local time)
-const MIMI_COUNT_KEY = 'windup_mimi_count'; // number
+/**
+ * localStorage keys. They are scoped per account (`<prefix>:<user id>`), so two accounts on the same browser
+ * each keep their own battery, and logging out and back in does not hand out a fresh 10 messages.
+ */
+const MIMI_DATE_KEY_PREFIX = 'windup_mimi_date'; // value: "YYYY-MM-DD" (local time)
+const MIMI_COUNT_KEY_PREFIX = 'windup_mimi_count'; // value: number
+
+/** Old, account-less keys. They were shared by every account on the device, so they are discarded. */
+const LEGACY_MIMI_KEYS = ['windup_mimi_date', 'windup_mimi_count'] as const;
+
+/** Placeholder used only to read storage while no user is known (nothing is ever written under it). */
+const NO_USER_ID = 'anonymous';
+
+const mimiKeysFor = (userId: string) => ({
+  date: `${MIMI_DATE_KEY_PREFIX}:${userId}`,
+  count: `${MIMI_COUNT_KEY_PREFIX}:${userId}`,
+});
 
 const REST_MESSAGE = "Mimi is resting for today. Her battery will be full again tomorrow, so come back then to write more together.";
 
@@ -47,21 +63,40 @@ const parseCount = (raw: string | null): number => {
 const getUsedToday = (storedDate: string | null, storedCount: string | null, todayKey: string): number =>
   storedDate === todayKey ? parseCount(storedCount) : 0;
 
-/** Event handlers only: counts one message if Mimi still has energy today. Returns false when she is resting. */
-function tryConsumeMimiMessage(): boolean {
+/**
+ * The signed-in account's id, taken from the Supabase session (read locally, no network round trip).
+ * `undefined` = still checking, `null` = nobody is signed in. Follows sign-in, sign-out and account switches.
+ */
+function useAuthUserId(): string | null | undefined {
+  const [userId, setUserId] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    const { data } = createClient().auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id ?? null);
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  return userId;
+}
+
+/** Event handlers only: counts one message for this account if Mimi still has energy today. Returns false when she is resting. */
+function tryConsumeMimiMessage(userId: string): boolean {
+  const keys = mimiKeysFor(userId);
   const todayKey = toDateKey(new Date());
-  const used = getUsedToday(getLocalStorageItem(MIMI_DATE_KEY), getLocalStorageItem(MIMI_COUNT_KEY), todayKey);
+  const used = getUsedToday(getLocalStorageItem(keys.date), getLocalStorageItem(keys.count), todayKey);
   if (used >= MAX_DAILY_MIMI_MESSAGES) return false;
-  setLocalStorageItem(MIMI_DATE_KEY, todayKey);
-  setLocalStorageItem(MIMI_COUNT_KEY, String(used + 1));
+  setLocalStorageItem(keys.date, todayKey);
+  setLocalStorageItem(keys.count, String(used + 1));
   return true;
 }
 
 /** Hydration-safe usage for rendering (server snapshot is empty storage, date comes from useNow). */
-function useMimiUsage() {
+function useMimiUsage(userId: string | null | undefined) {
   const now = useNow();
-  const storedDate = useLocalStorageItem(MIMI_DATE_KEY);
-  const storedCount = useLocalStorageItem(MIMI_COUNT_KEY);
+  const keys = mimiKeysFor(userId ?? NO_USER_ID);
+  const storedDate = useLocalStorageItem(keys.date);
+  const storedCount = useLocalStorageItem(keys.count);
   const used = Math.min(getUsedToday(storedDate, storedCount, toDateKey(new Date(now))), MAX_DAILY_MIMI_MESSAGES);
   return {
     used,
@@ -103,10 +138,27 @@ function MimiBattery({ remaining }: { remaining: number }) {
 }
 
 export default function MimiPanel({ isAuthenticated }: MimiPanelProps) {
+  const userId = useAuthUserId();
+
+  // One-time cleanup of the old shared keys, so a previous account's count can never leak into this one.
+  useEffect(() => {
+    LEGACY_MIMI_KEYS.forEach(removeLocalStorageItem);
+  }, []);
+
+  // `key` remounts the chat when the account changes, so one account's conversation is never shown to the next.
+  return <MimiChat key={userId ?? 'guest'} userId={userId} isAuthenticated={isAuthenticated} />;
+}
+
+interface MimiChatProps extends MimiPanelProps {
+  /** `undefined` while the session is still being checked, `null` when signed out. */
+  userId: string | null | undefined;
+}
+
+function MimiChat({ isAuthenticated, userId }: MimiChatProps) {
   const { messages, sendMessage, status, error } = useChat({ transport: chatTransport });
   const [input, setInput] = useState('');
   const logRef = useRef<HTMLDivElement>(null);
-  const { remaining, isResting } = useMimiUsage();
+  const { remaining, isResting } = useMimiUsage(userId);
 
   const isBusy = status === 'submitted' || status === 'streaming';
 
@@ -129,8 +181,10 @@ export default function MimiPanel({ isAuthenticated }: MimiPanelProps) {
     e.preventDefault();
     const text = input.trim();
     if (!text || text.length > MAX_INPUT_LENGTH || isBusy || isResting) return;
+    // The battery belongs to an account, so wait until we know which one is signed in.
+    if (!userId) return;
     // Fresh read of today's count right before sending, so the 10-message limit cannot be skipped.
-    if (!tryConsumeMimiMessage()) return;
+    if (!tryConsumeMimiMessage(userId)) return;
     sendMessage({ text });
     setInput('');
   };
