@@ -4,14 +4,19 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogIn, UserPlus, ArrowRight } from 'lucide-react';
 import { useLetters } from '@/app/providers';
-import { ALL_MOCK_POOL, isPublicPlane } from '@/lib/sky-planes';
+import { countSkyPlanes, isPublicPlane } from '@/lib/sky-planes';
 
 // Stop-motion background: 5 frames per theme, served from /public/landing_bg
 const FRAME_COUNT = 5;
 const FRAME_INTERVAL_MS = 400;
 const FRAMES = Array.from({ length: FRAME_COUNT }, (_, i) => i + 1);
 
-export default function LandingPage() {
+interface LandingPageProps {
+  /** Released public planes counted in the database (same source as The Sky). */
+  livePlaneCount: number;
+}
+
+export default function LandingPage({ livePlaneCount }: LandingPageProps) {
   const router = useRouter();
   const { letters } = useLetters();
   const [frame, setFrame] = useState(0);
@@ -26,8 +31,8 @@ export default function LandingPage() {
     return () => window.clearInterval(id);
   }, []);
 
-  // Dynamic counter connected to backend/database state
-  const totalPlanes = (letters?.filter(isPublicPlane)?.length || 0) + ALL_MOCK_POOL.length;
+  // Same rule as The Sky page, so the number here matches the planes actually shown there
+  const totalPlanes = countSkyPlanes(livePlaneCount, letters?.filter(isPublicPlane).length ?? 0);
 
   return (
     <div className="relative isolate overflow-hidden min-h-dvh flex flex-col items-center justify-between p-4 sm:p-6 bg-[#fbf9f5] dark:bg-[var(--bg-main)] text-slate-800 dark:text-slate-100 transition-colors">

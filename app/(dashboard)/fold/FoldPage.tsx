@@ -7,21 +7,25 @@ import {
   Lock,
   Eye,
   ChevronDown,
-  Sparkles,
   Lightbulb,
   Archive,
   FileText,
   AlertCircle,
   Clock,
+  Loader2,
 } from 'lucide-react';
 import { useLetters } from '@/app/providers';
-import { Visibility } from '@/types/letter';
+import type { Letter, Visibility } from '@/types/letter';
+import { createThought } from '@/app/actions/thoughts';
+import { toThoughtStatus } from '@/lib/thoughts';
 
 import SealDatePicker from '@/components/SealDatePicker';
 import MoodPicker from '@/components/MoodPicker';
+import { useToast } from '@/components/Toast';
 import {
   DAILY_LIMIT_MESSAGE,
   MAX_DAILY_RELEASES,
+  getDailyReleaseStatus,
   tryConsumeDailyRelease,
   useDailyReleaseStatus,
 } from '@/lib/daily-release';
@@ -30,11 +34,29 @@ const MAX_WORDS = 1000;
 const MAX_TITLE_LENGTH = 100;
 const NOTICE_DURATION_MS = 6000;
 
-function FoldContent() {
+interface FoldContentProps {
+  /** True when a Supabase session exists: letters are saved to the `thoughts` table. */
+  isAuthenticated: boolean;
+  /** The user's saved thoughts from Supabase, used to load a draft for editing. */
+  initialThoughts: Letter[];
+}
+
+/** What the form hands to the save step (status uses the UI vocabulary: kept / sealed / released / draft). */
+interface LetterDraftPayload {
+  title: string;
+  content: string;
+  mood: string;
+  status: 'draft' | 'kept' | 'sealed' | 'released';
+  visibility: Visibility;
+  sealUntil?: string;
+}
+
+function FoldContent({ isAuthenticated, initialThoughts }: FoldContentProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const draftId = searchParams.get('draftId');
   const { letters, addLetter } = useLetters();
+  const toast = useToast();
 
   const [title, setTitle] = useState('');
   const [content, setContent] = useState('');
@@ -42,7 +64,6 @@ function FoldContent() {
 
   const [visibility, setVisibility] = useState<Visibility>('private');
   const [isVisibilityOpen, setIsVisibilityOpen] = useState(false);
-  const [successMessage, setSuccessMessage] = useState('');
   const [errorMessage, setErrorMessage] = useState('');
   // Gentle (non-error) notice, e.g. the daily release limit
   const [noticeMessage, setNoticeMessage] = useState('');
@@ -69,7 +90,7 @@ function FoldContent() {
   // Load the draft into the form once per draftId. Adjusting state during render (instead of in an
   // effect) avoids a cascading re-render; see react.dev "You Might Not Need an Effect".
   if (draftId && loadedDraftId !== draftId) {
-    const existingDraft = letters.find((l) => l.id === draftId);
+    const existingDraft = [...initialThoughts, ...letters].find((l) => l.id === draftId);
     if (existingDraft) {
       setLoadedDraftId(draftId);
       setTitle(existingDraft.title || '');
@@ -111,7 +132,35 @@ function FoldContent() {
     };
   }, []);
 
-  const handleFoldAndRelease = (
+  /**
+   * Saves a letter. Signed in with Supabase -> the `thoughts` table (via the createThought server action).
+   * Otherwise it falls back to the local provider so the app keeps working exactly as before.
+   */
+  const persistLetter = async (letter: LetterDraftPayload): Promise<{ ok: true } | { ok: false; error: string }> => {
+    if (!isAuthenticated) {
+      addLetter({ ...(draftId ? { id: draftId } : {}), ...letter });
+      return { ok: true };
+    }
+
+    try {
+      const result = await createThought({
+        // Only update a draft that actually lives in Supabase; anything else becomes a new row.
+        ...(draftId && initialThoughts.some((t) => t.id === draftId) ? { id: draftId } : {}),
+        title: letter.title,
+        content: letter.content,
+        mood: letter.mood,
+        is_private: letter.status !== 'released',
+        status: toThoughtStatus(letter.status),
+        seal_until: letter.status === 'sealed' ? letter.sealUntil : null,
+      });
+      return result.success ? { ok: true } : { ok: false, error: result.error };
+    } catch (error) {
+      console.error('Failed to save letter', error);
+      return { ok: false, error: 'We could not save your letter. Please check your connection and try again.' };
+    }
+  };
+
+  const handleFoldAndRelease = async (
     targetStatus: 'kept' | 'sealed' | 'released' = 'kept', 
     customSealDate?: string
   ) => {
@@ -138,23 +187,14 @@ function FoldContent() {
     const finalStatus = targetStatus === 'released' ? 'released' : (actualVisibility === 'anonymous_public' ? 'released' : targetStatus);
 
     // Daily limit: only an actual release into the Sky counts. The letter stays in the form if blocked.
-    if (finalStatus === 'released' && !tryConsumeDailyRelease().allowed) {
+    if (finalStatus === 'released' && getDailyReleaseStatus().isLimitReached) {
       setNoticeMessage(DAILY_LIMIT_MESSAGE);
       if (noticeTimeoutRef.current) clearTimeout(noticeTimeoutRef.current);
       noticeTimeoutRef.current = setTimeout(() => setNoticeMessage(''), NOTICE_DURATION_MS);
       return;
     }
 
-    addLetter({
-      ...(draftId ? { id: draftId } : {}),
-      title: title.trim() || 'Untitled Thought',
-      content,
-      mood, 
-      status: finalStatus,
-      visibility: actualVisibility,
-      sealUntil: customSealDate || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
-    });
-
+    // Start the animation right away; it is undone below if saving fails.
     setIsAnimating(true);
     if (finalStatus === 'sealed') {
       setAnimType('seal');
@@ -162,15 +202,36 @@ function FoldContent() {
       setAnimType(actualVisibility === 'anonymous_public' ? 'fly' : 'fold');
     }
 
+    const saved = await persistLetter({
+      title: title.trim() || 'Untitled Thought',
+      content,
+      mood,
+      status: finalStatus,
+      visibility: actualVisibility,
+      sealUntil: customSealDate || new Date(Date.now() + 24 * 60 * 60 * 1000).toISOString(),
+    });
+
+    if (!saved.ok) {
+      // Keep the letter in the form so nothing is lost
+      setIsAnimating(false);
+      setAnimType(null);
+      toast.error(saved.error);
+      return;
+    }
+
+    // Count the release only once it has really been saved
+    if (finalStatus === 'released') tryConsumeDailyRelease();
+
     animTimeoutRef.current = setTimeout(() => {
-      if (actualVisibility === 'anonymous_public') {
-        setSuccessMessage('Your paper plane has drifted softly into the sky.');
+      // The toast lives in the layout, so it stays visible on the page we redirect to
+      if (finalStatus === 'released') {
+        toast.success('Your paper plane has drifted softly into the sky.');
       } else if (finalStatus === 'sealed') {
-        setSuccessMessage('Your letter is securely sealed.');
+        toast.success('Your letter is securely sealed.');
       } else {
-        setSuccessMessage('Your letter has been safely folded and kept in your jar.');
+        toast.success('Your letter has been safely folded and kept in your jar.');
       }
-      
+
       setTitle('');
       setContent('');
       setMood('neutral');
@@ -178,9 +239,8 @@ function FoldContent() {
       setAnimType(null);
 
       redirectTimeoutRef.current = setTimeout(() => {
-        setSuccessMessage('');
-        router.push(actualVisibility === 'anonymous_public' ? '/sky' : '/jar');
-      }, 1500);
+        router.push(finalStatus === 'released' ? '/sky' : '/jar');
+      }, 400);
     }, 800);
   };
 
@@ -190,7 +250,7 @@ function FoldContent() {
     handleFoldAndRelease(targetStatus);
   };
 
-  const handleSaveAsDraft = () => {
+  const handleSaveAsDraft = async () => {
     if (!content.trim()) {
       setErrorMessage('Cannot save an empty draft. Please write something first.');
       return;
@@ -212,8 +272,7 @@ function FoldContent() {
     setIsAnimating(true);
     setAnimType('draft');
 
-    addLetter({
-      ...(draftId ? { id: draftId } : {}),
+    const saved = await persistLetter({
       title: title.trim() || 'Untitled Draft',
       content,
       mood,
@@ -221,8 +280,15 @@ function FoldContent() {
       visibility,
     });
 
+    if (!saved.ok) {
+      setIsAnimating(false);
+      setAnimType(null);
+      toast.error(saved.error);
+      return;
+    }
+
     animTimeoutRef.current = setTimeout(() => {
-      setSuccessMessage('Draft saved successfully to your jar!');
+      toast.success('Draft saved successfully to your jar!');
       setTitle('');
       setContent('');
       setMood('neutral');
@@ -230,23 +296,15 @@ function FoldContent() {
       setAnimType(null);
 
       redirectTimeoutRef.current = setTimeout(() => {
-        setSuccessMessage('');
         router.push('/jar');
-      }, 1200);
+      }, 400);
     }, 600);
   };
 
   return (
     <div className="w-full max-w-6xl mx-auto px-4 sm:px-6 py-6 sm:py-8 min-h-[calc(100dvh-65px)] space-y-6 relative overflow-x-hidden">
       
-      {/* Notifications */}
-      {successMessage && (
-        <div className="p-4 rounded-2xl bg-emerald-50 dark:bg-emerald-950/60 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-semibold flex items-center gap-2.5 shadow-xs animate-in fade-in slide-in-from-top-2 duration-300">
-          <Sparkles className="w-4 h-4 text-emerald-600 dark:text-emerald-400 shrink-0" />
-          <span>{successMessage}</span>
-        </div>
-      )}
-
+      {/* Inline notices: form validation and the daily limit. Save results appear as toasts. */}
       {noticeMessage && (
         <div
           role="status"
@@ -294,6 +352,7 @@ function FoldContent() {
         <div className="w-full min-w-0 lg:col-span-8">
           <form
             onSubmit={handleFormSubmit}
+            aria-busy={isAnimating}
             className={`rounded-3xl border p-4 sm:p-7 shadow-xs flex flex-col justify-between space-y-6 transition-all duration-500 overflow-hidden ${
               animType === 'fold' ? 'scale-90 opacity-30 rotate-1 blur-xs' : ''
             } ${animType === 'draft' ? 'animate-pulse opacity-70' : ''} ${
@@ -428,9 +487,14 @@ function FoldContent() {
                     type="button"
                     onClick={handleSaveAsDraft}
                     disabled={isAnimating}
-                    className="flex-1 sm:flex-none justify-center px-3.5 py-2.5 sm:py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700/80 transition-all duration-150 flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-2xs"
+                    aria-busy={animType === 'draft'}
+                    className="flex-1 sm:flex-none justify-center px-3.5 py-2.5 sm:py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-800 text-slate-700 dark:text-slate-200 text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700/80 transition-all duration-150 flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-2xs disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <FileText className={`w-3.5 h-3.5 opacity-80 ${animType === 'draft' ? 'animate-spin' : ''}`} />
+                    {animType === 'draft' ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin" aria-hidden="true" />
+                    ) : (
+                      <FileText className="w-3.5 h-3.5 opacity-80" />
+                    )}
                     <span>{animType === 'draft' ? 'Saving...' : 'Save Draft'}</span>
                   </button>
                 )}
@@ -455,10 +519,15 @@ function FoldContent() {
                       setIsSealModalOpen(true);
                     }}
                     disabled={isAnimating}
-                    className="flex-1 sm:flex-none justify-center px-3.5 py-2.5 sm:py-2 rounded-xl border border-amber-300/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs font-semibold hover:bg-amber-500/20 transition-all duration-150 flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-2xs"
+                    aria-busy={animType === 'seal'}
+                    className="flex-1 sm:flex-none justify-center px-3.5 py-2.5 sm:py-2 rounded-xl border border-amber-300/50 bg-amber-500/10 text-amber-800 dark:text-amber-300 text-xs font-semibold hover:bg-amber-500/20 transition-all duration-150 flex items-center gap-1.5 active:scale-95 cursor-pointer shadow-2xs disabled:cursor-not-allowed disabled:opacity-60"
                   >
-                    <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
-                    <span>Seal Letter</span>
+                    {animType === 'seal' ? (
+                      <Loader2 className="w-3.5 h-3.5 animate-spin text-amber-600 dark:text-amber-400" aria-hidden="true" />
+                    ) : (
+                      <Lock className="w-3.5 h-3.5 text-amber-600 dark:text-amber-400" />
+                    )}
+                    <span>{animType === 'seal' ? 'Sealing...' : 'Seal Letter'}</span>
                   </button>
                 )}
 
@@ -483,17 +552,24 @@ function FoldContent() {
                     <button
                       type="submit"
                       disabled={isAnimating}
-                      className="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs active:scale-95 transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer"
+                      aria-busy={animType === 'fly' || animType === 'fold'}
+                      className="flex-1 sm:flex-none px-4 py-2.5 sm:py-2 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold shadow-xs active:scale-95 transition-all duration-150 flex items-center justify-center gap-2 cursor-pointer disabled:cursor-not-allowed disabled:opacity-80"
                     >
-                      {visibility === 'anonymous_public' ? (
-                        <Send className={`w-3.5 h-3.5 transition-transform duration-500 ${
-                          animType === 'fly' ? 'translate-x-12 -translate-y-12 scale-125 opacity-0' : ''
-                        }`} />
-                      ) : (
-                        <Archive className={`w-3.5 h-3.5 transition-transform duration-500 ${
-                          animType === 'fold' ? 'scale-0 rotate-180 opacity-0' : ''
-                        }`} />
-                      )}
+                      {/* The plane / folder icon keeps its exit animation; a spinner shows in the same spot while saving */}
+                      <span className="relative inline-flex h-3.5 w-3.5 items-center justify-center">
+                        {visibility === 'anonymous_public' ? (
+                          <Send className={`w-3.5 h-3.5 transition-transform duration-500 ${
+                            animType === 'fly' ? 'translate-x-12 -translate-y-12 scale-125 opacity-0' : ''
+                          }`} />
+                        ) : (
+                          <Archive className={`w-3.5 h-3.5 transition-transform duration-500 ${
+                            animType === 'fold' ? 'scale-0 rotate-180 opacity-0' : ''
+                          }`} />
+                        )}
+                        {(animType === 'fly' || animType === 'fold') && (
+                          <Loader2 className="absolute inset-0 h-3.5 w-3.5 animate-spin" aria-hidden="true" />
+                        )}
+                      </span>
                       <span>
                         {isAnimating
                           ? (visibility === 'anonymous_public' ? 'Releasing...' : 'Folding...')
@@ -582,10 +658,10 @@ function FoldContent() {
   );
 }
 
-export default function FoldPage() {
+export default function FoldPage(props: FoldContentProps) {
   return (
     <Suspense fallback={<div className="p-8 text-center text-xs opacity-60">Loading sanctuary journal...</div>}>
-      <FoldContent />
+      <FoldContent {...props} />
     </Suspense>
   );
 }

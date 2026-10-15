@@ -1,13 +1,17 @@
 'use client';
 
-import { useState } from 'react';
-import { Calendar, Heart, Trash2, BookmarkCheck, Send } from 'lucide-react';
+import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
+import { Calendar, Heart, Trash2, BookmarkCheck, Send, AlertTriangle } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 import AlertModal, { type AlertVariant } from '@/components/AlertModal';
 import { getMoodConfig } from '@/lib/mood';
 import ViewLetterModal, { LetterModalAction, LetterModalChip } from '@/components/ViewLetterModal';
 import { getPlaneLikes } from '@/lib/sky-planes';
 import { DAILY_LIMIT_MESSAGE, MAX_DAILY_RELEASES, useDailyReleaseStatus } from '@/lib/daily-release';
+import { changeThoughtStatus, deleteThought } from '@/app/actions/thoughts';
+import type { PublicThought, ThoughtActionResult } from '@/lib/thoughts';
+import { createClient } from '@/utils/supabase/client';
 
 interface SentPlane {
   id: string;
@@ -20,9 +24,80 @@ interface SentPlane {
   createdAt: string;
 }
 
-export default function SentPlanesPage() {
+interface SentPlanesPageProps {
+  /** Released planes from Supabase (`getPublicThoughts`); only the reader's own are listed here. */
+  publicThoughts: PublicThought[];
+  /** True when a Supabase session exists; otherwise the local (legacy) store is used. */
+  isAuthenticated: boolean;
+}
+
+const ownPlanes = (thoughts: PublicThought[]) => thoughts.filter((t) => t.isOwner);
+
+export default function SentPlanesPage({ publicThoughts, isAuthenticated }: SentPlanesPageProps) {
+  const router = useRouter();
   const { letters, setLetters } = useLetters();
   const [selectedPlaneId, setSelectedPlaneId] = useState<string | null>(null);
+  const [errorMessage, setErrorMessage] = useState('');
+
+  // Supabase-backed planes, updated optimistically and re-synced whenever fresh server data arrives
+  const [serverPlanes, setServerPlanes] = useState<PublicThought[]>(() => ownPlanes(publicThoughts));
+  const [prevPublicThoughts, setPrevPublicThoughts] = useState(publicThoughts);
+  if (publicThoughts !== prevPublicThoughts) {
+    setPrevPublicThoughts(publicThoughts);
+    setServerPlanes(ownPlanes(publicThoughts));
+  }
+
+  // Live likes: while this page is open, Supabase Realtime tells us when one of YOUR planes changes
+  // (a like or unlike from anyone), so the "Resonated" numbers update without a reload.
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    const supabase = createClient();
+    let channel: ReturnType<typeof supabase.channel> | null = null;
+    let cancelled = false;
+
+    void supabase.auth.getSession().then(({ data }) => {
+      const userId = data.session?.user.id;
+      if (cancelled || !userId) return;
+
+      channel = supabase
+        .channel(`sent-planes-likes-${userId}`)
+        .on(
+          'postgres_changes',
+          { event: 'UPDATE', schema: 'public', table: 'thoughts', filter: `user_id=eq.${userId}` },
+          (payload) => {
+            const row = payload.new as { id?: string; likes?: number };
+            if (!row.id || typeof row.likes !== 'number') return;
+            const { id, likes } = row;
+            setServerPlanes((prev) => prev.map((p) => (p.id === id ? { ...p, likes } : p)));
+          }
+        )
+        .subscribe();
+    });
+
+    return () => {
+      cancelled = true;
+      if (channel) void supabase.removeChannel(channel);
+    };
+  }, [isAuthenticated]);
+
+  /** Removes a plane from the Sky list right away, then saves; restores the list if saving fails. */
+  const removeOnServer = async (id: string, request: Promise<ThoughtActionResult>) => {
+    const rollback = serverPlanes;
+    setServerPlanes((prev) => prev.filter((p) => p.id !== id));
+    try {
+      const result = await request;
+      if (result.success) {
+        router.refresh();
+        return;
+      }
+      setErrorMessage(result.error);
+    } catch (error) {
+      console.error(error);
+      setErrorMessage('Something went wrong. Please try again.');
+    }
+    setServerPlanes(rollback);
+  };
 
   // Hydration-safe (empty on the server) and live: updates when storage changes or the day rolls over
   const releaseStatus = useDailyReleaseStatus();
@@ -44,16 +119,28 @@ export default function SentPlanesPage() {
     onConfirm: () => {},
   });
 
-  const sentPlanes: SentPlane[] = letters
-    .filter((l) => l.visibility === 'anonymous_public' || l.status === 'released')
-    .map((l) => ({
-      id: l.id,
-      title: l.title || 'Untitled Thought',
-      content: l.content,
-      mood: l.mood || 'peaceful',
-      resonated: getPlaneLikes(l),
-      createdAt: l.createdAt ? new Date(l.createdAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Sep 28, 2026',
-    }));
+  const formatSentDate = (value?: string) =>
+    value ? new Date(value).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' }) : 'Sep 28, 2026';
+
+  const sentPlanes: SentPlane[] = isAuthenticated
+    ? serverPlanes.map((t) => ({
+        id: t.id,
+        title: t.title,
+        content: t.content,
+        mood: t.mood,
+        resonated: t.likes,
+        createdAt: formatSentDate(t.createdAt),
+      }))
+    : letters
+        .filter((l) => l.visibility === 'anonymous_public' || l.status === 'released')
+        .map((l) => ({
+          id: l.id,
+          title: l.title || 'Untitled Thought',
+          content: l.content,
+          mood: l.mood || 'peaceful',
+          resonated: getPlaneLikes(l),
+          createdAt: formatSentDate(l.createdAt),
+        }));
 
   const handleDelete = (id: string, e?: React.MouseEvent) => {
     e?.stopPropagation();
@@ -64,7 +151,9 @@ export default function SentPlanesPage() {
       variant: 'destructive',
       confirmLabel: 'Delete',
       onConfirm: () => {
-        if (setLetters) {
+        if (isAuthenticated) {
+          void removeOnServer(id, deleteThought(id));
+        } else if (setLetters) {
           setLetters(letters.filter((l) => l.id !== id));
         }
         if (selectedPlaneId === id) setSelectedPlaneId(null);
@@ -82,7 +171,9 @@ export default function SentPlanesPage() {
       variant: 'primary',
       confirmLabel: 'Keep in Jar',
       onConfirm: () => {
-        if (setLetters) {
+        if (isAuthenticated) {
+          void removeOnServer(id, changeThoughtStatus(id, 'folded'));
+        } else if (setLetters) {
           setLetters(
             letters.map((l) => 
               l.id === id 
@@ -287,6 +378,18 @@ export default function SentPlanesPage() {
             </>
           )
         }
+      />
+
+      {/* Save / sync error */}
+      <AlertModal
+        isOpen={!!errorMessage}
+        onClose={() => setErrorMessage('')}
+        title="Something went wrong"
+        subtitle="Your planes were not changed"
+        icon={AlertTriangle}
+        variant="warning"
+        cancelLabel="Got it"
+        description={errorMessage}
       />
 
       {/* Confirmation Dialog */}

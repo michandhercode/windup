@@ -1,4 +1,6 @@
 import Navbar from '@/components/Navbar';
+import AuthSync from '@/components/AuthSync';
+import { ToastProvider } from '@/components/Toast';
 
 export default function DashboardLayout({
   children,
@@ -6,9 +8,12 @@ export default function DashboardLayout({
   children: React.ReactNode;
 }) {
   return (
-    <div className="min-h-dvh text-[var(--text-main)] transition-colors">
-      <Navbar />
-      <main>{children}</main>
-    </div>
+    <ToastProvider>
+      <div className="min-h-dvh text-[var(--text-main)] transition-colors">
+        <AuthSync />
+        <Navbar />
+        <main>{children}</main>
+      </div>
+    </ToastProvider>
   );
 }
