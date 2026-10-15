@@ -1,6 +1,7 @@
 'use client';
 
-import { useState, useMemo, useRef, useSyncExternalStore } from 'react';
+import { useState, useMemo, useRef, useEffect, useSyncExternalStore } from 'react';
+import { useRouter } from 'next/navigation';
 import { Heart, CheckCircle2, FoldHorizontal, UserCheck } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 import { ALL_MOCK_POOL, isPublicPlane, getPlaneLikes, shouldShowSamplePlanes } from '@/lib/sky-planes';
@@ -9,7 +10,8 @@ import { formatLetterDate } from '@/lib/format';
 import type { PublicThought } from '@/lib/thoughts';
 import { toggleThoughtLike } from '@/app/actions/thoughts';
 import { useToast } from '@/components/Toast';
-import { useIsClient, useLocalStorageItem, setLocalStorageItem } from '@/lib/hooks/useLocalStorage';
+import { useIsClient, useLocalStorageItem, setLocalStorageItem, removeLocalStorageItem } from '@/lib/hooks/useLocalStorage';
+import { createClient } from '@/utils/supabase/client';
 
 const PLANES_PER_CATCH = 7;
 
@@ -35,8 +37,21 @@ interface PlanePlacement {
 }
 
 const READ_PLANES_KEY = 'sky_read_planes';
-/** Ids of planes the current reader has liked (per-reader flag, so a like can be toggled off). */
-const LIKED_PLANES_KEY = 'sky_liked_planes';
+/**
+ * Ids of local / sample planes the current reader has liked (per-reader flag, so a like can be toggled off).
+ * Stored per account (`sky_liked_planes:<user id>`), so one account's hearts never show up as already liked,
+ * or block a like, for the next account on the same browser.
+ */
+const LIKED_PLANES_KEY_PREFIX = 'sky_liked_planes';
+/** The old key was shared by every account on the device, so it is discarded. */
+const LEGACY_LIKED_PLANES_KEY = 'sky_liked_planes';
+
+/**
+ * Storage key for the hearts of one reader. While the session is still being checked (`undefined`) it points at
+ * a placeholder that is never written to, so no other account's (or the guest's) hearts can show up in that gap.
+ */
+const likedPlanesKeyFor = (userId: string | null | undefined): string =>
+  `${LIKED_PLANES_KEY_PREFIX}:${userId === undefined ? 'pending' : userId === null ? 'guest' : userId}`;
 const COMPACT_QUERY = '(max-width: 639px)';
 
 /** Small deterministic PRNG (mulberry32) so the sky is a pure function of its seed. */
@@ -102,7 +117,25 @@ interface SkyPageProps {
   publicThoughts: PublicThought[];
 }
 
+/**
+ * The signed-in account's id, from the Supabase session (read locally, no network round trip).
+ * `undefined` = still checking, `null` = nobody is signed in. Follows sign-in, sign-out and account switches.
+ */
+function useAuthUserId(): string | null | undefined {
+  const [userId, setUserId] = useState<string | null | undefined>(undefined);
+
+  useEffect(() => {
+    const { data } = createClient().auth.onAuthStateChange((_event, session) => {
+      setUserId(session?.user?.id ?? null);
+    });
+    return () => data.subscription.unsubscribe();
+  }, []);
+
+  return userId;
+}
+
 export default function SkyPage({ publicThoughts }: SkyPageProps) {
+  const router = useRouter();
   const { letters, updateLetter } = useLetters();
   // Store only the id; the plane itself is derived from live data so counts never go stale.
   const [selectedPlaneId, setSelectedPlaneId] = useState<string | null>(null);
@@ -122,8 +155,26 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
   const rawReadIds = useLocalStorageItem(READ_PLANES_KEY);
   const readPlaneIds = useMemo(() => parseIds(rawReadIds), [rawReadIds]);
 
-  const rawLikedIds = useLocalStorageItem(LIKED_PLANES_KEY);
+  // `undefined` = the session is still being checked, `null` = signed out, string = the signed-in account.
+  const userId = useAuthUserId();
+  const likedPlanesKey = likedPlanesKeyFor(userId);
+  const rawLikedIds = useLocalStorageItem(likedPlanesKey);
   const likedIds = useMemo(() => parseIds(rawLikedIds), [rawLikedIds]);
+
+  // The account the page is currently acting for. Read after `await`s to detect an account switch mid-request.
+  const activeUserIdRef = useRef<string | null | undefined>(undefined);
+  useEffect(() => {
+    const previous = activeUserIdRef.current;
+    activeUserIdRef.current = userId;
+    // The account changed while this page was open: the server data (likedByMe, ownership) was built for the
+    // previous account, so fetch it again for the new one.
+    if (previous !== undefined && userId !== undefined && previous !== userId) router.refresh();
+  }, [userId, router]);
+
+  // One-time cleanup of the old shared key, so a previous account's hearts can never leak into this one.
+  useEffect(() => {
+    removeLocalStorageItem(LEGACY_LIKED_PLANES_KEY);
+  }, []);
 
   const toast = useToast();
 
@@ -135,6 +186,14 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
     setPrevPublicThoughts(publicThoughts);
     setLikeOverrides({});
   }
+  // Switching accounts drops every like shown for the previous account, and closes any open plane,
+  // so a like can never be sent as the wrong account.
+  const [prevUserId, setPrevUserId] = useState(userId);
+  if (userId !== prevUserId) {
+    setPrevUserId(userId);
+    setLikeOverrides({});
+    setSelectedPlaneId(null);
+  }
   const pendingLikeIds = useRef(new Set<string>());
 
   const masterPool: SkyPlane[] = useMemo(() => {
@@ -143,7 +202,9 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
       title: l.title || 'Untitled Thought',
       content: l.content,
       mood: l.mood || 'peaceful',
-      likes: getPlaneLikes(l), // your own planes: the count stored on the letter
+      // Signed in: the letters in this browser are shared by every account, so this account's heart is layered
+      // on top of the stored count (never written onto the letter). Signed out: the count stored on the letter.
+      likes: getPlaneLikes(l) + (userId && likedIds.includes(l.id) ? 1 : 0),
       createdAt: l.createdAt,
       isUserOwner: true,
       source: 'local',
@@ -175,7 +236,7 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
             liked: likedIds.includes(p.id),
           }));
     return [...userPlanes, ...livePlanes, ...samplePlanes];
-  }, [letters, likedIds, publicThoughts, likeOverrides]);
+  }, [letters, likedIds, publicThoughts, likeOverrides, userId]);
 
   const selectedPlane = selectedPlaneId ? masterPool.find((p) => p.id === selectedPlaneId) ?? null : null;
   const isLiked = !!selectedPlane?.liked;
@@ -207,10 +268,18 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
   );
 
   const handleToggleLike = async (plane: SkyPlane) => {
-    // Planes saved in the database: the like is stored there (one per person) and counted for everyone
+    // Never like before we know who is signed in: the like would be stored for the wrong reader.
+    if (userId === undefined) return;
+
+    // Planes saved in the database: the like is stored in Supabase (one per person) and counted for everyone.
+    // It is never kept in browser storage. The server reads the session cookie to know which account is liking.
     if (plane.source === 'live') {
-      if (pendingLikeIds.current.has(plane.id)) return; // ignore double clicks while saving
-      pendingLikeIds.current.add(plane.id);
+      const actingUserId = userId;
+      const pendingKey = `${actingUserId ?? 'guest'}:${plane.id}`;
+      if (pendingLikeIds.current.has(pendingKey)) return; // ignore double clicks while saving
+      pendingLikeIds.current.add(pendingKey);
+      // True while the account that clicked is still the active one.
+      const isSameAccount = () => activeUserIdRef.current === actingUserId;
 
       const before = { liked: plane.liked, likes: plane.likes };
       const nextLiked = !plane.liked;
@@ -221,6 +290,8 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
 
       try {
         const result = await toggleThoughtLike(plane.id);
+        // The account was switched while saving: the result belongs to the old account, so do not show it.
+        if (!isSameAccount()) return;
         if (result.success) {
           setLikeOverrides((prev) => ({ ...prev, [plane.id]: { liked: result.liked, likes: result.likes } }));
         } else {
@@ -229,21 +300,23 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
         }
       } catch (error) {
         console.error(error);
+        if (!isSameAccount()) return;
         setLikeOverrides((prev) => ({ ...prev, [plane.id]: before }));
         toast.error('We could not save your like. Please check your connection and try again.');
       } finally {
-        pendingLikeIds.current.delete(plane.id);
+        pendingLikeIds.current.delete(pendingKey);
       }
       return;
     }
 
-    // Local and sample planes (not in the database): likes stay on this device
+    // Local and sample planes (not in the database): likes stay on this device, under this account's own key.
     const wasLiked = likedIds.includes(plane.id);
     const nextLikedIds = wasLiked ? likedIds.filter((id) => id !== plane.id) : [...likedIds, plane.id];
-    setLocalStorageItem(LIKED_PLANES_KEY, JSON.stringify(nextLikedIds));
+    setLocalStorageItem(likedPlanesKey, JSON.stringify(nextLikedIds));
 
-    // Your own plane: write the new count onto the letter so Sent Planes shows the exact same number.
-    if (plane.isUserOwner) {
+    // Signed out only: your own plane keeps its count on the letter so Sent Planes shows the exact same number.
+    // Signed in, the letters in this browser are shared by every account, so nothing is written onto them.
+    if (plane.isUserOwner && userId === null) {
       updateLetter(plane.id, { likes: Math.max(0, plane.likes + (wasLiked ? -1 : 1)) });
     }
   };
