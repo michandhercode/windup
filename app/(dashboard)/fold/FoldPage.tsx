@@ -21,6 +21,7 @@ import { toThoughtStatus } from '@/lib/thoughts';
 import SealDatePicker from '@/components/SealDatePicker';
 import MoodPicker from '@/components/MoodPicker';
 import MimiPanel from '@/components/MimiPanel';
+import SignInPrompt, { type SignInPromptReason } from '@/components/SignInPrompt';
 import { useToast } from '@/components/Toast';
 import {
   DAILY_LIMIT_MESSAGE,
@@ -35,7 +36,7 @@ const MAX_TITLE_LENGTH = 100;
 const NOTICE_DURATION_MS = 6000;
 
 interface FoldContentProps {
-  /** True when a Supabase session exists: letters are saved to the `thoughts` table. */
+  /** True when a Supabase session exists: letters are saved to the `thoughts` table. Guests are read-only. */
   isAuthenticated: boolean;
   /** The user's saved thoughts from Supabase, used to load a draft for editing. */
   initialThoughts: Letter[];
@@ -55,7 +56,7 @@ function FoldContent({ isAuthenticated, initialThoughts }: FoldContentProps) {
   const router = useRouter();
   const searchParams = useSearchParams();
   const draftId = searchParams.get('draftId');
-  const { letters, addLetter } = useLetters();
+  const { letters } = useLetters();
   const toast = useToast();
 
   const [title, setTitle] = useState('');
@@ -69,6 +70,8 @@ function FoldContent({ isAuthenticated, initialThoughts }: FoldContentProps) {
   const [noticeMessage, setNoticeMessage] = useState('');
   
   const [isSealModalOpen, setIsSealModalOpen] = useState(false);
+  // Guests can look around but not write: any save / seal / release opens this prompt instead.
+  const [signInPromptReason, setSignInPromptReason] = useState<SignInPromptReason | null>(null);
 
   const [isAnimating, setIsAnimating] = useState(false);
   const [animType, setAnimType] = useState<'fly' | 'fold' | 'seal' | 'draft' | null>(null);
@@ -133,14 +136,19 @@ function FoldContent({ isAuthenticated, initialThoughts }: FoldContentProps) {
   }, []);
 
   /**
-   * Saves a letter. Signed in with Supabase -> the `thoughts` table (via the createThought server action).
-   * Otherwise it falls back to the local provider so the app keeps working exactly as before.
+   * Guest gate: returns true (and shows the sign-in prompt) when nobody is signed in, so the caller stops
+   * before anything is validated, animated or saved.
    */
+  const blockGuest = (reason: SignInPromptReason): boolean => {
+    if (isAuthenticated) return false;
+    setSignInPromptReason(reason);
+    return true;
+  };
+
+  /** Saves a letter to the `thoughts` table (via the createThought server action). Signed-in accounts only. */
   const persistLetter = async (letter: LetterDraftPayload): Promise<{ ok: true } | { ok: false; error: string }> => {
-    if (!isAuthenticated) {
-      addLetter({ ...(draftId ? { id: draftId } : {}), ...letter });
-      return { ok: true };
-    }
+    // Safety net: the handlers already stop guests, but never let a guest write to the database or local storage.
+    if (!isAuthenticated) return { ok: false, error: 'Please sign in to save your letters.' };
 
     try {
       const result = await createThought({
@@ -164,6 +172,8 @@ function FoldContent({ isAuthenticated, initialThoughts }: FoldContentProps) {
     targetStatus: 'kept' | 'sealed' | 'released' = 'kept', 
     customSealDate?: string
   ) => {
+    if (blockGuest(targetStatus === 'released' || visibility === 'anonymous_public' ? 'release' : 'save')) return;
+
     if (!content.trim()) {
       setErrorMessage('Please write something in your letter before submitting.');
       return;
@@ -251,6 +261,8 @@ function FoldContent({ isAuthenticated, initialThoughts }: FoldContentProps) {
   };
 
   const handleSaveAsDraft = async () => {
+    if (blockGuest('save')) return;
+
     if (!content.trim()) {
       setErrorMessage('Cannot save an empty draft. Please write something first.');
       return;
@@ -503,6 +515,7 @@ function FoldContent({ isAuthenticated, initialThoughts }: FoldContentProps) {
                   <button
                     type="button"
                     onClick={() => {
+                      if (blockGuest('save')) return;
                       if (!content.trim()) {
                         setErrorMessage('Please write something before sealing your letter.');
                         return;
@@ -606,6 +619,13 @@ function FoldContent({ isAuthenticated, initialThoughts }: FoldContentProps) {
           setIsSealModalOpen(false);
           handleFoldAndRelease('sealed', sealUntilISO);
         }}
+      />
+
+      {/* Guest mode is read-only: writing, sealing and releasing all ask for an account */}
+      <SignInPrompt
+        isOpen={signInPromptReason !== null}
+        onClose={() => setSignInPromptReason(null)}
+        reason={signInPromptReason ?? 'save'}
       />
 
     </div>

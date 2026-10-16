@@ -7,6 +7,8 @@ import {
   type UIMessage,
 } from 'ai';
 import { getAuthUserId } from '@/lib/auth';
+import { createClient } from '@/utils/supabase/server';
+import { MIMI_RESTING_MESSAGE } from '@/lib/quota';
 import { MIMI_SYSTEM_PROMPT } from '@/lib/ai/prompts';
 
 // Streaming responses may run longer than the default serverless timeout.
@@ -82,6 +84,26 @@ export async function POST(req: Request) {
     const lastText = lastUser ? textOf(lastUser).trim() : '';
     if (!lastText || lastText.length > MAX_TEXT_LENGTH) {
       return Response.json({ error: 'Invalid request.' }, { status: 400 });
+    }
+
+    // Mimi's daily battery belongs to this account and is counted in the database (see supabase/quotas.sql), so it
+    // cannot be reset from the browser. It is used only after the request is known to be valid, and before Gemini is called.
+    // A reply that then fails still uses one message (there is deliberately no way to hand a unit back).
+    stage = 'daily quota (consume_mimi_message)';
+    const supabase = await createClient();
+    const { data: allowed, error: quotaError } = await supabase.rpc('consume_mimi_message');
+    if (quotaError) {
+      console.error('[api/chat] consume_mimi_message failed. Has supabase/quotas.sql been run?', {
+        code: quotaError.code,
+        message: quotaError.message,
+      });
+      return Response.json(
+        { error: IS_DEV ? `${FRIENDLY_ERROR} (quota: ${quotaError.code}: ${quotaError.message})` : FRIENDLY_ERROR },
+        { status: 503 }
+      );
+    }
+    if (!allowed) {
+      return Response.json({ error: MIMI_RESTING_MESSAGE, code: 'DAILY_LIMIT' }, { status: 429 });
     }
 
     stage = 'convertToModelMessages';

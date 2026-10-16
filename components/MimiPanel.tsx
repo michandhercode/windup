@@ -4,15 +4,9 @@ import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { Loader2, Moon, Send } from 'lucide-react';
-import {
-  getLocalStorageItem,
-  removeLocalStorageItem,
-  setLocalStorageItem,
-  useLocalStorageItem,
-} from '@/lib/hooks/useLocalStorage';
 import { createClient } from '@/utils/supabase/client';
-import { useNow } from '@/lib/hooks/useNow';
-import { toDateKey } from '@/lib/daily-release';
+import { MIMI_RESTING_MESSAGE } from '@/lib/quota';
+import { recordDailyQuotaUse, refreshDailyQuota, useDailyQuota } from '@/lib/quota-client';
 
 interface MimiPanelProps {
   /** Mimi's API route requires a Supabase session, so guests see a sign-in note instead of the chat input. */
@@ -28,40 +22,15 @@ const COUNTER_SHOW_RATIO = 0.8;
 /** The counter turns amber at this share of the limit. */
 const COUNTER_WARN_RATIO = 0.9;
 
-/** How many messages a person can send to Mimi per calendar day. */
-const MAX_DAILY_MIMI_MESSAGES = 10;
-
 /**
- * localStorage keys. They are scoped per account (`<prefix>:<user id>`), so two accounts on the same browser
- * each keep their own battery, and logging out and back in does not hand out a fresh 10 messages.
+ * Mimi's daily battery belongs to the signed-in account and lives in the database (supabase/quotas.sql): the
+ * /api/chat route counts every message there, so it survives clearing the browser, another device, or another
+ * account signing in on this one. The browser only shows the numbers the server returned.
  */
-const MIMI_DATE_KEY_PREFIX = 'windup_mimi_date'; // value: "YYYY-MM-DD" (local time)
-const MIMI_COUNT_KEY_PREFIX = 'windup_mimi_count'; // value: number
-
-/** Old, account-less keys. They were shared by every account on the device, so they are discarded. */
-const LEGACY_MIMI_KEYS = ['windup_mimi_date', 'windup_mimi_count'] as const;
-
-/** Placeholder used only to read storage while no user is known (nothing is ever written under it). */
-const NO_USER_ID = 'anonymous';
-
-const mimiKeysFor = (userId: string) => ({
-  date: `${MIMI_DATE_KEY_PREFIX}:${userId}`,
-  count: `${MIMI_COUNT_KEY_PREFIX}:${userId}`,
-});
-
-const REST_MESSAGE = "Mimi is resting for today. Her battery will be full again tomorrow, so come back then to write more together.";
+const REST_MESSAGE = MIMI_RESTING_MESSAGE;
 
 // Created once at module level so the transport (and the chat) is stable across re-renders.
 const chatTransport = new DefaultChatTransport({ api: '/api/chat' });
-
-const parseCount = (raw: string | null): number => {
-  const value = Number.parseInt(raw ?? '', 10);
-  return Number.isFinite(value) && value > 0 ? value : 0;
-};
-
-/** Pure: messages used today. A stored date from another day means a fresh day, so 0. */
-const getUsedToday = (storedDate: string | null, storedCount: string | null, todayKey: string): number =>
-  storedDate === todayKey ? parseCount(storedCount) : 0;
 
 /**
  * The signed-in account's id, taken from the Supabase session (read locally, no network round trip).
@@ -80,33 +49,8 @@ function useAuthUserId(): string | null | undefined {
   return userId;
 }
 
-/** Event handlers only: counts one message for this account if Mimi still has energy today. Returns false when she is resting. */
-function tryConsumeMimiMessage(userId: string): boolean {
-  const keys = mimiKeysFor(userId);
-  const todayKey = toDateKey(new Date());
-  const used = getUsedToday(getLocalStorageItem(keys.date), getLocalStorageItem(keys.count), todayKey);
-  if (used >= MAX_DAILY_MIMI_MESSAGES) return false;
-  setLocalStorageItem(keys.date, todayKey);
-  setLocalStorageItem(keys.count, String(used + 1));
-  return true;
-}
-
-/** Hydration-safe usage for rendering (server snapshot is empty storage, date comes from useNow). */
-function useMimiUsage(userId: string | null | undefined) {
-  const now = useNow();
-  const keys = mimiKeysFor(userId ?? NO_USER_ID);
-  const storedDate = useLocalStorageItem(keys.date);
-  const storedCount = useLocalStorageItem(keys.count);
-  const used = Math.min(getUsedToday(storedDate, storedCount, toDateKey(new Date(now))), MAX_DAILY_MIMI_MESSAGES);
-  return {
-    used,
-    remaining: MAX_DAILY_MIMI_MESSAGES - used,
-    isResting: used >= MAX_DAILY_MIMI_MESSAGES,
-  };
-}
-
 /** Cute battery: one segment per message, draining as the day's messages are used. */
-function MimiBattery({ remaining }: { remaining: number }) {
+function MimiBattery({ remaining, limit }: { remaining: number; limit: number }) {
   const fillColor =
     remaining > 5 ? 'bg-emerald-500' : remaining > 2 ? 'bg-amber-400' : 'bg-rose-400';
 
@@ -114,11 +58,11 @@ function MimiBattery({ remaining }: { remaining: number }) {
     <div className="flex flex-col items-center gap-1.5">
       <div
         role="img"
-        aria-label={`Mimi's energy: ${remaining} of ${MAX_DAILY_MIMI_MESSAGES} messages left today`}
+        aria-label={`Mimi's energy: ${remaining} of ${limit} messages left today`}
         className="flex items-center"
       >
         <div className="flex gap-0.5 rounded-lg border-2 border-current/30 p-0.5">
-          {Array.from({ length: MAX_DAILY_MIMI_MESSAGES }, (_, i) => (
+          {Array.from({ length: limit }, (_, i) => (
             <span
               key={i}
               className={`h-3.5 w-2 rounded-xs transition-colors duration-300 ${
@@ -131,7 +75,7 @@ function MimiBattery({ remaining }: { remaining: number }) {
         <span className="ml-0.5 h-2.5 w-1 rounded-r-sm bg-current/30" />
       </div>
       <p className="text-[10px] font-semibold tracking-wide opacity-70">
-        {remaining === 0 ? 'Resting' : `Energy ${remaining}/${MAX_DAILY_MIMI_MESSAGES}`}
+        {remaining === 0 ? 'Resting' : `Energy ${remaining}/${limit}`}
       </p>
     </div>
   );
@@ -139,11 +83,6 @@ function MimiBattery({ remaining }: { remaining: number }) {
 
 export default function MimiPanel({ isAuthenticated }: MimiPanelProps) {
   const userId = useAuthUserId();
-
-  // One-time cleanup of the old shared keys, so a previous account's count can never leak into this one.
-  useEffect(() => {
-    LEGACY_MIMI_KEYS.forEach(removeLocalStorageItem);
-  }, []);
 
   // `key` remounts the chat when the account changes, so one account's conversation is never shown to the next.
   return <MimiChat key={userId ?? 'guest'} userId={userId} isAuthenticated={isAuthenticated} />;
@@ -158,7 +97,8 @@ function MimiChat({ isAuthenticated, userId }: MimiChatProps) {
   const { messages, sendMessage, status, error } = useChat({ transport: chatTransport });
   const [input, setInput] = useState('');
   const logRef = useRef<HTMLDivElement>(null);
-  const { remaining, isResting } = useMimiUsage(userId);
+  // Server-backed and account-scoped: empty for guests, and dropped the moment the account changes.
+  const { remaining, limit, isLimitReached: isResting } = useDailyQuota('mimi');
 
   const isBusy = status === 'submitted' || status === 'streaming';
 
@@ -177,14 +117,25 @@ function MimiChat({ isAuthenticated, userId }: MimiChatProps) {
     if (el) el.scrollTop = el.scrollHeight;
   }, [messages, status, error]);
 
+  // When a reply finishes (or fails, e.g. the server says Mimi is resting) re-read the real battery from the server.
+  const wasBusyRef = useRef(false);
+  useEffect(() => {
+    if (isBusy) {
+      wasBusyRef.current = true;
+    } else if (wasBusyRef.current) {
+      wasBusyRef.current = false;
+      void refreshDailyQuota('mimi');
+    }
+  }, [isBusy]);
+
   const handleSubmit = (e: FormEvent<HTMLFormElement>) => {
     e.preventDefault();
     const text = input.trim();
     if (!text || text.length > MAX_INPUT_LENGTH || isBusy || isResting) return;
     // The battery belongs to an account, so wait until we know which one is signed in.
     if (!userId) return;
-    // Fresh read of today's count right before sending, so the 10-message limit cannot be skipped.
-    if (!tryConsumeMimiMessage(userId)) return;
+    // The server counts the message (and refuses it once the battery is empty); this only updates the display early.
+    recordDailyQuotaUse('mimi');
     sendMessage({ text });
     setInput('');
   };
@@ -216,7 +167,7 @@ function MimiChat({ isAuthenticated, userId }: MimiChatProps) {
         <p className="max-w-xs text-[11px] leading-relaxed opacity-75 break-words">
           Your quiet papercraft companion to help you reflect, write letters, and sort through your thoughts.
         </p>
-        <MimiBattery remaining={remaining} />
+        <MimiBattery remaining={remaining} limit={limit} />
       </div>
 
       <div className="w-full min-w-0 space-y-4">
@@ -261,7 +212,7 @@ function MimiChat({ isAuthenticated, userId }: MimiChatProps) {
             </div>
           )}
 
-          {error && (
+          {error && !isResting && (
             <div className="space-y-1">
               <p className="text-[11px] text-rose-600 dark:text-rose-400">
                 Mimi is taking a short pause. Your letter is still safe here; please try again in a moment.

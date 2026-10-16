@@ -1,4 +1,5 @@
 import { Metadata } from 'next';
+import { redirect } from 'next/navigation';
 import JarPage from './JarPage';
 import { getUserJarThoughts } from '@/app/actions/thoughts';
 import { getAuthUserId } from '@/lib/auth';
@@ -10,8 +11,11 @@ export const metadata: Metadata = {
 };
 
 export default async function Page() {
-  const isAuthenticated = !!(await getAuthUserId());
-  const initialThoughts = isAuthenticated ? (await getUserJarThoughts()).map(thoughtToLetter) : [];
+  // The jar is private to an account: guests are sent to sign in instead of seeing anyone's (or any local) letters.
+  if (!(await getAuthUserId())) redirect('/login');
 
-  return <JarPage initialThoughts={initialThoughts} isAuthenticated={isAuthenticated} />;
+  // Only this account's rows (user_id = auth.uid()), fetched fresh on every request.
+  const initialThoughts = (await getUserJarThoughts()).map(thoughtToLetter);
+
+  return <JarPage initialThoughts={initialThoughts} isAuthenticated />;
 }

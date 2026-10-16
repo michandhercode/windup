@@ -29,14 +29,14 @@ export interface PublicThought {
   createdAt: string;
   /** True when the signed-in reader wrote this plane. */
   isOwner: boolean;
-  /** True when this reader (signed in, or this guest browser) has liked the plane. */
+  /** True when the signed-in reader has liked the plane. Always false for guests (read-only). */
   likedByMe: boolean;
 }
 
 /** Result of liking / unliking a plane: the new state and the real total from the database. */
 export type ToggleLikeResult =
   | { success: true; liked: boolean; likes: number }
-  | { success: false; error: string };
+  | { success: false; error: string; code?: 'UNAUTHENTICATED' };
 
 /** Result shape shared by the mutation server actions. */
 export type ThoughtActionResult = { success: true } | { success: false; error: string };

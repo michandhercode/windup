@@ -5,14 +5,12 @@ import { getAuthUserId } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { toMood } from '@/lib/mood'
+import { DAILY_RELEASE_LIMIT_MESSAGE } from '@/lib/quota'
 import type { PublicThought, ThoughtActionResult, ThoughtRow, ThoughtStatus, ToggleLikeResult } from '@/lib/thoughts'
 
 const MAX_TITLE_LENGTH = 120
 const MAX_CONTENT_LENGTH = 10_000
 const PUBLIC_FEED_LIMIT = 100
-// Guests have no account, so the server gives each browser a random id (httpOnly cookie) to tell likes apart.
-const GUEST_COOKIE = 'windup_guest_id'
-const GUEST_COOKIE_MAX_AGE = 60 * 60 * 24 * 365
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
 export interface CreateThoughtInput {
@@ -48,6 +46,11 @@ const isDevelopment = process.env.NODE_ENV !== 'production'
  * the toast / modal itself. In production users only see the friendly sentence.
  */
 function failure(context: string, friendly: string, error: DatabaseError | null, note?: string): { success: false; error: string } {
+  // The daily plane limit is a normal answer from the database (trigger in supabase/quotas.sql), not a fault.
+  if (error?.message?.includes('DAILY_RELEASE_LIMIT')) {
+    return { success: false, error: DAILY_RELEASE_LIMIT_MESSAGE }
+  }
+
   console.error(`[thoughts] ${context} failed`, {
     code: error?.code,
     message: error?.message,
@@ -67,7 +70,7 @@ function failure(context: string, friendly: string, error: DatabaseError | null,
       break
     case 'PGRST202': // PostgREST: function not found in schema cache
     case '42883': // undefined_function
-      reason = 'The likes feature is not set up in the database. Please run supabase/likes.sql in Supabase.'
+      reason = 'A database function is missing. Please run supabase/likes.sql and supabase/quotas.sql in Supabase.'
       break
     case 'P0002': // plane not found / not public
       reason = 'This plane is no longer in the sky.'
@@ -80,11 +83,6 @@ function failure(context: string, friendly: string, error: DatabaseError | null,
 
   const detail = error ? `${error.code ?? 'error'}: ${error.message}` : note
   return { success: false, error: isDevelopment && detail ? `${reason} [${detail}]` : reason }
-}
-
-async function readGuestId(): Promise<string | null> {
-  const value = (await cookies()).get(GUEST_COOKIE)?.value
-  return value && UUID_PATTERN.test(value) ? value : null
 }
 
 /**
@@ -151,10 +149,9 @@ export async function createThought(data: CreateThoughtInput): Promise<CreateTho
 // 2. Public Paper Planes (The Sky feed). Reads a safe view, so the author's id is never exposed.
 export async function getPublicThoughts(): Promise<PublicThought[]> {
   const [supabase, userId] = await Promise.all([createClient(), getAuthUserId()])
-  // A signed-in reader is identified by the account only; the guest cookie is for signed-out visitors.
-  const guestId = userId ? null : await readGuestId()
 
   // The feed, "which planes are mine?" and "which have I liked?" are independent, so they run at the same time.
+  // Guests are read-only: they have no account, so there is nothing of theirs to look up.
   const [{ data, error }, mine, liked] = await Promise.all([
     supabase
       .from('public_thoughts')
@@ -164,7 +161,8 @@ export async function getPublicThoughts(): Promise<PublicThought[]> {
     userId
       ? supabase.from('thoughts').select('id').eq('user_id', userId).eq('status', 'released')
       : Promise.resolve({ data: null }),
-    supabase.rpc('liked_thought_ids', { p_guest_id: guestId }),
+    // liked_thought_ids() takes no arguments: the database reads the account from auth.uid().
+    userId ? supabase.rpc('liked_thought_ids') : Promise.resolve({ data: null, error: null }),
   ])
 
   if (error) {
@@ -191,7 +189,8 @@ export async function getPublicThoughts(): Promise<PublicThought[]> {
   }))
 }
 
-// 3. The signed-in user's private Jar entries (drafts, kept, sealed, opened)
+// 3. The signed-in user's private Jar entries (drafts, kept, sealed, opened).
+//    Always filtered by the session's account id; Row Level Security (user_id = auth.uid()) enforces it again in the database.
 export async function getUserJarThoughts(): Promise<ThoughtRow[]> {
   const userId = await getAuthUserId()
   if (!userId) return []
@@ -264,39 +263,23 @@ export async function deleteThought(id: string): Promise<ThoughtActionResult> {
   return { success: true }
 }
 
-// 6. Like (or unlike) a released plane. Works for signed-in users and for guests, on your own planes too.
-//    The database keeps one like per person per plane and returns the real total.
-//    A signed-in user is ALWAYS identified by their Supabase account (auth.uid() inside the database function);
-//    the guest cookie is only ever read or created when there is no login at all.
+// 6. Like (or unlike) a released plane. Signed-in accounts only: guests are read-only.
+//    The database keeps one like per account per plane (UNIQUE (thought_id, user_id)) and returns the real total.
+//    The account is always read from the session by the database function (auth.uid()), never from the client.
 export async function toggleThoughtLike(thoughtId: string): Promise<ToggleLikeResult> {
   if (!UUID_PATTERN.test(thoughtId)) return { success: false, error: 'This plane cannot be liked.' }
 
   const userId = await getAuthUserId()
-
-  let guestId: string | null = null
   if (!userId) {
-    // A login cookie exists but the server cannot confirm it: ask to sign in again instead of liking as a guest.
+    // A login cookie exists but the server cannot confirm it: the session ran out, so ask to sign in again.
     if (await hasSupabaseSessionCookie()) {
-      return { success: false, error: 'Your session has expired. Please sign in again to like planes.' }
+      return { success: false, error: 'Your session has expired. Please sign in again to like planes.', code: 'UNAUTHENTICATED' }
     }
-
-    // Truly signed out: guests are identified by a random id kept in a cookie (created on their first like)
-    guestId = await readGuestId()
-    if (!guestId) {
-      guestId = crypto.randomUUID()
-      ;(await cookies()).set(GUEST_COOKIE, guestId, {
-        httpOnly: true,
-        sameSite: 'lax',
-        secure: process.env.NODE_ENV === 'production',
-        path: '/',
-        maxAge: GUEST_COOKIE_MAX_AGE,
-      })
-    }
+    return { success: false, error: 'Please sign in to like planes.', code: 'UNAUTHENTICATED' }
   }
 
   const supabase = await createClient()
-  // Signed in: p_guest_id is null, so the database can only use auth.uid(). Signed out: the guest id.
-  const { data, error } = await supabase.rpc('toggle_thought_like', { p_thought_id: thoughtId, p_guest_id: guestId })
+  const { data, error } = await supabase.rpc('toggle_thought_like', { p_thought_id: thoughtId })
   const row = (data as { liked: boolean; likes: number }[] | null)?.[0]
 
   if (error || !row) {

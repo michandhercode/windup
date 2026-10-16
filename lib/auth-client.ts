@@ -40,6 +40,44 @@ export function clearLocalProfile(): void {
   Object.values(KEYS).forEach(removeLocalStorageItem);
 }
 
+/**
+ * Browser storage that belongs to ONE account (or to the old, account-less local store). Matched by prefix, so
+ * per-account keys such as `sky_liked_planes:<user id>` are caught too. The theme and other device-wide
+ * preferences are deliberately not listed here.
+ */
+const ACCOUNT_SCOPED_PREFIXES = [
+  'windup_letters', // legacy local letter store (retired: letters now live only in Supabase, per user_id)
+  'windup_email_notifications',
+  'windup_last_release_date', // legacy client-side quota counters (quotas now live in the database)
+  'windup_daily_release_count',
+  'windup_mimi_date',
+  'windup_mimi_count',
+  'sky_read_planes',
+  'sky_liked_planes',
+] as const;
+
+/** Key that remembers which account this browser last showed. Managed by AuthSync only. */
+export const ACTIVE_USER_KEY = 'windup_active_user';
+
+/**
+ * Wipes everything cached in this browser for the previous account (profile mirror, local letters, hearts,
+ * read marks, old quota counters). Call when the signed-in account changes or ends.
+ */
+export function purgeAccountStorage(): void {
+  clearLocalProfile();
+  try {
+    const stale: string[] = [];
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && ACCOUNT_SCOPED_PREFIXES.some((prefix) => key.startsWith(prefix))) stale.push(key);
+    }
+    stale.forEach(removeLocalStorageItem);
+  } catch {
+    /* storage unavailable - nothing cached to remove */
+  }
+  removeLocalStorageItem(ACTIVE_USER_KEY);
+}
+
 /** Friendly, non-technical messages for the Supabase auth errors users can actually hit. */
 export function getAuthErrorMessage(code: string | undefined, fallback: string): string {
   switch (code) {

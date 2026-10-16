@@ -1,12 +1,10 @@
 'use client';
 
-import React, { createContext, useContext, useCallback, useMemo } from "react";
+import React, { createContext, useContext, useCallback } from "react";
 import { ThemeProvider } from 'next-themes';
 import { Letter } from '@/types/letter';
-import { toMood } from '@/lib/mood';
 import { useLocalStorageItem, setLocalStorageItem } from '@/lib/hooks/useLocalStorage';
 
-const LETTERS_KEY = 'windup_letters';
 const DISPLAY_NAME_KEY = 'windup_display_name';
 
 /** Fields the caller provides when saving a letter. `mood` may be any string; it is normalised to a valid Mood. */
@@ -27,77 +25,32 @@ interface LetterContextType {
 
 const LetterContext = createContext<LetterContextType | undefined>(undefined);
 
-const parseLetters = (raw: string | null): Letter[] => {
-  if (!raw) return [];
-  try {
-    const parsed: unknown = JSON.parse(raw);
-    return Array.isArray(parsed) ? (parsed as Letter[]) : [];
-  } catch (e) {
-    console.error("Failed to parse letters from localStorage", e);
-    return [];
-  }
-};
+/**
+ * The old browser-wide letter store (`windup_letters`) is retired. It was shared by every account and guest on
+ * the device, so letters written under one account could show up under another. Every letter now lives in
+ * Supabase and is fetched per account (`user_id = auth.uid()`). The `letters` API below stays only so existing
+ * screens keep compiling: it is always empty, and writes are ignored.
+ */
+const NO_LETTERS: Letter[] = [];
 
 export function Providers({ children }: { children: React.ReactNode }) {
-  // localStorage is the source of truth; useLocalStorageItem keeps React in sync with it
-  // (and returns null on the server, so hydration always matches).
-  const rawLetters = useLocalStorageItem(LETTERS_KEY);
-  const letters = useMemo(() => parseLetters(rawLetters), [rawLetters]);
   const displayName = useLocalStorageItem(DISPLAY_NAME_KEY) || 'Anonymous Scribe';
 
-  // Same signature as a useState setter (value or updater), persisted straight to localStorage.
-  const setLetters = useCallback<React.Dispatch<React.SetStateAction<Letter[]>>>((action) => {
-    const current = parseLetters(localStorage.getItem(LETTERS_KEY));
-    const next = typeof action === 'function' ? action(current) : action;
-    setLocalStorageItem(LETTERS_KEY, JSON.stringify(next));
-  }, []);
+  const setLetters = useCallback<React.Dispatch<React.SetStateAction<Letter[]>>>(() => {}, []);
 
   const handleSetDisplayName = (name: string) => {
     setLocalStorageItem(DISPLAY_NAME_KEY, name);
   };
 
-  const addLetter = (letterData: NewLetterInput) => {
-    const now = new Date().toISOString();
-    const { id: incomingId, mood: rawMood, ...rest } = letterData;
-    const mood = toMood(rawMood);
-
-    setLetters((prev) => {
-      // UPSERT: if a letter with this id already exists, update it in place
-      if (incomingId && prev.some((l) => l.id === incomingId)) {
-        return prev.map((l) =>
-          l.id === incomingId
-            ? { ...l, ...rest, mood, createdAt: l.createdAt, updatedAt: now }
-            : l
-        );
-      }
-
-      // Otherwise create a brand new entry
-      const newLetter: Letter = {
-        ...rest,
-        mood,
-        id: incomingId || (crypto.randomUUID ? crypto.randomUUID() : Date.now().toString()),
-        createdAt: now,
-        updatedAt: now,
-      };
-      return [newLetter, ...prev];
-    });
-  };
-
-  const updateLetter = (id: string, updatedFields: Partial<Letter>) => {
-    setLetters((prev) =>
-      prev.map((l) => (l.id === id ? { ...l, ...updatedFields, updatedAt: new Date().toISOString() } : l))
-    );
-  };
-
-  const getLetterById = (id: string) => {
-    return letters.find((l) => l.id === id);
-  };
+  const addLetter = () => {};
+  const updateLetter = () => {};
+  const getLetterById = (): Letter | undefined => undefined;
 
   // First visit is always Light Mode (OS dark preference is ignored). A manual choice from the
   // Navbar toggle is saved to localStorage (key: "theme") by next-themes and wins on later visits.
   return (
     <ThemeProvider attribute="class" defaultTheme="light" enableSystem={false}>
-      <LetterContext.Provider value={{ letters, setLetters, addLetter, updateLetter, getLetterById, displayName, setDisplayName: handleSetDisplayName }}>
+      <LetterContext.Provider value={{ letters: NO_LETTERS, setLetters, addLetter, updateLetter, getLetterById, displayName, setDisplayName: handleSetDisplayName }}>
         {children}
       </LetterContext.Provider>
     </ThemeProvider>

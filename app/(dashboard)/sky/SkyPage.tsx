@@ -12,6 +12,7 @@ import { toggleThoughtLike } from '@/app/actions/thoughts';
 import { useToast } from '@/components/Toast';
 import { useIsClient, useLocalStorageItem, setLocalStorageItem, removeLocalStorageItem } from '@/lib/hooks/useLocalStorage';
 import { createClient } from '@/utils/supabase/client';
+import SignInPrompt from '@/components/SignInPrompt';
 
 const PLANES_PER_CATCH = 7;
 
@@ -115,6 +116,8 @@ const subscribeCompact = (onChange: () => void) => {
 interface SkyPageProps {
   /** Released planes from Supabase (`getPublicThoughts`). */
   publicThoughts: PublicThought[];
+  /** Whether the server saw a signed-in session. Lets guests be recognised before the browser session check finishes. */
+  isAuthenticated: boolean;
 }
 
 /**
@@ -134,9 +137,9 @@ function useAuthUserId(): string | null | undefined {
   return userId;
 }
 
-export default function SkyPage({ publicThoughts }: SkyPageProps) {
+export default function SkyPage({ publicThoughts, isAuthenticated }: SkyPageProps) {
   const router = useRouter();
-  const { letters, updateLetter } = useLetters();
+  const { letters } = useLetters();
   // Store only the id; the plane itself is derived from live data so counts never go stale.
   const [selectedPlaneId, setSelectedPlaneId] = useState<string | null>(null);
   // The whole sky is derived from this seed; "Catch More Planes" just rolls a new one.
@@ -178,6 +181,11 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
 
   const toast = useToast();
 
+  // Guests are read-only: liking opens a friendly sign-in prompt instead of running.
+  const [showSignInPrompt, setShowSignInPrompt] = useState(false);
+  // Signed out for sure (browser says so), or the browser is still checking but the server saw no session.
+  const isGuest = userId === null || (userId === undefined && !isAuthenticated);
+
   // Likes on database planes: shown instantly, then replaced by the real total the server returns.
   // Cleared whenever fresh server data arrives, because that data is then the source of truth.
   const [likeOverrides, setLikeOverrides] = useState<Record<string, { liked: boolean; likes: number }>>({});
@@ -202,8 +210,8 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
       title: l.title || 'Untitled Thought',
       content: l.content,
       mood: l.mood || 'peaceful',
-      // Signed in: the letters in this browser are shared by every account, so this account's heart is layered
-      // on top of the stored count (never written onto the letter). Signed out: the count stored on the letter.
+      // The letters in this browser are shared by every account, so this account's heart is layered
+      // on top of the stored count (never written onto the letter).
       likes: getPlaneLikes(l) + (userId && likedIds.includes(l.id) ? 1 : 0),
       createdAt: l.createdAt,
       isUserOwner: true,
@@ -268,14 +276,19 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
   );
 
   const handleToggleLike = async (plane: SkyPlane) => {
+    // Guest mode is read-only: do not like anything (not even on this device), just invite them to sign in.
+    if (isGuest) {
+      setShowSignInPrompt(true);
+      return;
+    }
     // Never like before we know who is signed in: the like would be stored for the wrong reader.
     if (userId === undefined) return;
 
-    // Planes saved in the database: the like is stored in Supabase (one per person) and counted for everyone.
+    // Planes saved in the database: the like is stored in Supabase (one per account) and counted for everyone.
     // It is never kept in browser storage. The server reads the session cookie to know which account is liking.
     if (plane.source === 'live') {
       const actingUserId = userId;
-      const pendingKey = `${actingUserId ?? 'guest'}:${plane.id}`;
+      const pendingKey = `${actingUserId}:${plane.id}`;
       if (pendingLikeIds.current.has(pendingKey)) return; // ignore double clicks while saving
       pendingLikeIds.current.add(pendingKey);
       // True while the account that clicked is still the active one.
@@ -296,7 +309,9 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
           setLikeOverrides((prev) => ({ ...prev, [plane.id]: { liked: result.liked, likes: result.likes } }));
         } else {
           setLikeOverrides((prev) => ({ ...prev, [plane.id]: before }));
-          toast.error(result.error);
+          // The session ended while the page was open: treat the reader like a guest from here on.
+          if (result.code === 'UNAUTHENTICATED') setShowSignInPrompt(true);
+          else toast.error(result.error);
         }
       } catch (error) {
         console.error(error);
@@ -314,11 +329,7 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
     const nextLikedIds = wasLiked ? likedIds.filter((id) => id !== plane.id) : [...likedIds, plane.id];
     setLocalStorageItem(likedPlanesKey, JSON.stringify(nextLikedIds));
 
-    // Signed out only: your own plane keeps its count on the letter so Sent Planes shows the exact same number.
     // Signed in, the letters in this browser are shared by every account, so nothing is written onto them.
-    if (plane.isUserOwner && userId === null) {
-      updateLetter(plane.id, { likes: Math.max(0, plane.likes + (wasLiked ? -1 : 1)) });
-    }
   };
 
   const handleOpenPlane = (plane: SkyPlane) => {
@@ -512,6 +523,9 @@ export default function SkyPage({ publicThoughts }: SkyPageProps) {
           )
         }
       />
+
+      {/* Guests can read everything, but liking asks them to sign in first */}
+      <SignInPrompt isOpen={showSignInPrompt} onClose={() => setShowSignInPrompt(false)} reason="like" />
 
     </div>
   );
