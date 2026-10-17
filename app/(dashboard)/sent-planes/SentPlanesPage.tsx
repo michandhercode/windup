@@ -8,7 +8,9 @@ import AlertModal, { type AlertVariant } from '@/components/AlertModal';
 import { getMoodConfig } from '@/lib/mood';
 import ViewLetterModal, { LetterModalAction, LetterModalChip } from '@/components/ViewLetterModal';
 import { getPlaneLikes } from '@/lib/sky-planes';
-import { DAILY_LIMIT_MESSAGE, MAX_DAILY_RELEASES, useDailyReleaseStatus } from '@/lib/daily-release';
+import { DAILY_LIMIT_MESSAGE, useDailyReleaseStatus } from '@/lib/daily-release';
+import { refreshDailyQuota } from '@/lib/quota-client';
+import type { DailyQuota } from '@/lib/quota';
 import { changeThoughtStatus, deleteThought } from '@/app/actions/thoughts';
 import type { PublicThought, ThoughtActionResult } from '@/lib/thoughts';
 import { createClient } from '@/utils/supabase/client';
@@ -29,11 +31,13 @@ interface SentPlanesPageProps {
   publicThoughts: PublicThought[];
   /** True when a Supabase session exists; otherwise the local (legacy) store is used. */
   isAuthenticated: boolean;
+  /** Today's release count as read by the server (get_user_quota) when the page was rendered. */
+  initialReleaseQuota?: DailyQuota | null;
 }
 
 const ownPlanes = (thoughts: PublicThought[]) => thoughts.filter((t) => t.isOwner);
 
-export default function SentPlanesPage({ publicThoughts, isAuthenticated }: SentPlanesPageProps) {
+export default function SentPlanesPage({ publicThoughts, isAuthenticated, initialReleaseQuota = null }: SentPlanesPageProps) {
   const router = useRouter();
   const { letters, setLetters } = useLetters();
   const [selectedPlaneId, setSelectedPlaneId] = useState<string | null>(null);
@@ -101,7 +105,18 @@ export default function SentPlanesPage({ publicThoughts, isAuthenticated }: Sent
 
   // Hydration-safe (empty on the server) and live: updates when storage changes or the day rolls over
   const releaseStatus = useDailyReleaseStatus();
-  const releasedToday = Math.min(releaseStatus.used, MAX_DAILY_RELEASES);
+
+  // Re-read the real count whenever this page opens (the store may hold a number from before planes were released).
+  useEffect(() => {
+    if (isAuthenticated) void refreshDailyQuota('release');
+  }, [isAuthenticated]);
+
+  // The live store takes over once it has loaded. Until then the server-rendered count is shown, so the counter
+  // never flashes a wrong "0/3" (and the first render still matches the server's markup).
+  const releaseLimit = releaseStatus.isLoaded ? releaseStatus.limit : (initialReleaseQuota?.limit ?? releaseStatus.limit);
+  const releasedToday = Math.min(releaseStatus.isLoaded ? releaseStatus.used : (initialReleaseQuota?.used ?? 0), releaseLimit);
+  const isReleaseCountKnown = releaseStatus.isLoaded || !!initialReleaseQuota;
+  const isReleaseLimitReached = releaseStatus.isLoaded ? releaseStatus.isLimitReached : !!initialReleaseQuota && releasedToday >= releaseLimit;
 
   const [confirmConfig, setConfirmConfig] = useState<{
     isOpen: boolean;
@@ -242,16 +257,16 @@ export default function SentPlanesPage({ publicThoughts, isAuthenticated }: Sent
 
           {/* Daily release counter */}
           <div
-            title={releaseStatus.isLimitReached ? DAILY_LIMIT_MESSAGE : undefined}
+            title={isReleaseLimitReached ? DAILY_LIMIT_MESSAGE : undefined}
             className={`col-span-2 lg:col-span-1 px-4 py-2 rounded-2xl border backdrop-blur-xs flex items-center gap-3 shadow-xs transition-colors ${
-              releaseStatus.isLimitReached
+              isReleaseLimitReached
                 ? 'bg-amber-50/80 dark:bg-amber-950/30 border-amber-300/60 dark:border-amber-800/60'
                 : 'bg-white/80 dark:bg-slate-900/80 border-sky-200/60 dark:border-slate-800'
             }`}
           >
             <div
               className={`p-1.5 rounded-xl ${
-                releaseStatus.isLimitReached
+                isReleaseLimitReached
                   ? 'bg-amber-500/15 text-amber-600 dark:text-amber-400'
                   : 'bg-emerald-500/10 text-emerald-600 dark:text-emerald-400'
               }`}
@@ -261,7 +276,7 @@ export default function SentPlanesPage({ publicThoughts, isAuthenticated }: Sent
             <div>
               <div className="text-[10px] uppercase font-bold text-slate-400 tracking-wider">Today&apos;s Limit</div>
               <div className="text-sm font-extrabold text-slate-800 dark:text-slate-100">
-                {releasedToday}/{MAX_DAILY_RELEASES}{' '}
+                {isReleaseCountKnown ? releasedToday : '-'}/{releaseLimit}{' '}
                 <span className="text-[10px] font-semibold text-slate-400">released</span>
               </div>
             </div>

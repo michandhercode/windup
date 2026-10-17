@@ -1,6 +1,6 @@
 import { Metadata } from 'next';
 import SkyPage from './SkyPage';
-import { getPublicThoughts } from '@/app/actions/thoughts';
+import { getPublicThoughts, getReadThoughtIds } from '@/app/actions/thoughts';
 import { getAuthUserId } from '@/lib/auth';
 
 export const metadata: Metadata = {
@@ -10,7 +10,13 @@ export const metadata: Metadata = {
 
 export default async function Page() {
   // Guests may browse and read; the page only needs to know whether liking is allowed.
-  const [publicThoughts, userId] = await Promise.all([getPublicThoughts(), getAuthUserId()]);
+  // The planes this reader has already opened are loaded together with the feed (read_thought_ids), so the
+  // very first paint already shows them as Read. Guests have no account, so their list is empty.
+  const [publicThoughts, userId, readThoughtIds] = await Promise.all([
+    getPublicThoughts(),
+    getAuthUserId(),
+    getReadThoughtIds(),
+  ]);
 
-  return <SkyPage publicThoughts={publicThoughts} isAuthenticated={!!userId} />;
+  return <SkyPage publicThoughts={publicThoughts} isAuthenticated={!!userId} initialReadIds={readThoughtIds} />;
 }

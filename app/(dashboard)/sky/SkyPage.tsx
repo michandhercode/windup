@@ -8,7 +8,7 @@ import { ALL_MOCK_POOL, isPublicPlane, getPlaneLikes, shouldShowSamplePlanes } f
 import ViewLetterModal, { LetterModalAction } from '@/components/ViewLetterModal';
 import { formatLetterDate } from '@/lib/format';
 import type { PublicThought } from '@/lib/thoughts';
-import { toggleThoughtLike } from '@/app/actions/thoughts';
+import { markThoughtRead, toggleThoughtLike } from '@/app/actions/thoughts';
 import { useToast } from '@/components/Toast';
 import { useIsClient, useLocalStorageItem, setLocalStorageItem, removeLocalStorageItem } from '@/lib/hooks/useLocalStorage';
 import { createClient } from '@/utils/supabase/client';
@@ -37,7 +37,12 @@ interface PlanePlacement {
   delay: string;
 }
 
+/**
+ * Read marks kept on this device: for guests, and for planes that are not rows in the database (local letters and
+ * the sample planes). A signed-in reader's marks on database planes live in Supabase instead (see markThoughtRead).
+ */
 const READ_PLANES_KEY = 'sky_read_planes';
+const NO_IDS: string[] = [];
 /**
  * Ids of local / sample planes the current reader has liked (per-reader flag, so a like can be toggled off).
  * Stored per account (`sky_liked_planes:<user id>`), so one account's hearts never show up as already liked,
@@ -118,6 +123,8 @@ interface SkyPageProps {
   publicThoughts: PublicThought[];
   /** Whether the server saw a signed-in session. Lets guests be recognised before the browser session check finishes. */
   isAuthenticated: boolean;
+  /** Ids of the database planes this reader has already opened (`read_thought_ids`); empty for guests. */
+  initialReadIds?: string[];
 }
 
 /**
@@ -137,7 +144,7 @@ function useAuthUserId(): string | null | undefined {
   return userId;
 }
 
-export default function SkyPage({ publicThoughts, isAuthenticated }: SkyPageProps) {
+export default function SkyPage({ publicThoughts, isAuthenticated, initialReadIds = NO_IDS }: SkyPageProps) {
   const router = useRouter();
   const { letters } = useLetters();
   // Store only the id; the plane itself is derived from live data so counts never go stale.
@@ -186,6 +193,18 @@ export default function SkyPage({ publicThoughts, isAuthenticated }: SkyPageProp
   // Signed out for sure (browser says so), or the browser is still checking but the server saw no session.
   const isGuest = userId === null || (userId === undefined && !isAuthenticated);
 
+  // Read marks of a signed-in reader on database planes. `initialReadIds` is what the database said when the page
+  // was rendered; `readOverrides` are planes opened since then (shown at once, then confirmed by the save).
+  const [readOverrides, setReadOverrides] = useState<string[]>([]);
+  // After an account switch the ids from the server still belong to the previous account until fresh ones arrive.
+  const [readIdsStale, setReadIdsStale] = useState(false);
+  const [prevInitialReadIds, setPrevInitialReadIds] = useState(initialReadIds);
+  if (initialReadIds !== prevInitialReadIds) {
+    setPrevInitialReadIds(initialReadIds);
+    setReadIdsStale(false);
+  }
+  const pendingReadIds = useRef(new Set<string>());
+
   // Likes on database planes: shown instantly, then replaced by the real total the server returns.
   // Cleared whenever fresh server data arrives, because that data is then the source of truth.
   const [likeOverrides, setLikeOverrides] = useState<Record<string, { liked: boolean; likes: number }>>({});
@@ -201,6 +220,9 @@ export default function SkyPage({ publicThoughts, isAuthenticated }: SkyPageProp
     setPrevUserId(userId);
     setLikeOverrides({});
     setSelectedPlaneId(null);
+    setReadOverrides([]);
+    // A real switch (not the first moment the session is known): the server's read ids are the old account's.
+    if (prevUserId !== undefined) setReadIdsStale(true);
   }
   const pendingLikeIds = useRef(new Set<string>());
 
@@ -245,6 +267,11 @@ export default function SkyPage({ publicThoughts, isAuthenticated }: SkyPageProp
           }));
     return [...userPlanes, ...livePlanes, ...samplePlanes];
   }, [letters, likedIds, publicThoughts, likeOverrides, userId]);
+
+  const accountReadIds = useMemo(
+    () => new Set([...(readIdsStale ? NO_IDS : initialReadIds), ...readOverrides]),
+    [initialReadIds, readIdsStale, readOverrides]
+  );
 
   const selectedPlane = selectedPlaneId ? masterPool.find((p) => p.id === selectedPlaneId) ?? null : null;
   const isLiked = !!selectedPlane?.liked;
@@ -332,9 +359,47 @@ export default function SkyPage({ publicThoughts, isAuthenticated }: SkyPageProp
     // Signed in, the letters in this browser are shared by every account, so nothing is written onto them.
   };
 
+  /** Saves "this account has read this plane" in Supabase. The plane turns Read at once; it is undone if saving fails. */
+  const markPlaneRead = async (id: string) => {
+    // Never save before we know who is signed in: the mark would be stored for the wrong reader.
+    const actingUserId = userId;
+    if (!actingUserId || accountReadIds.has(id)) return;
+
+    const pendingKey = `${actingUserId}:${id}`;
+    if (pendingReadIds.current.has(pendingKey)) return; // already being saved
+    pendingReadIds.current.add(pendingKey);
+
+    const undo = () => setReadOverrides((prev) => prev.filter((readId) => readId !== id));
+    setReadOverrides((prev) => (prev.includes(id) ? prev : [...prev, id]));
+
+    try {
+      const result = await markThoughtRead(id);
+      // The account was switched while saving: the overrides were already cleared, and this result is not theirs.
+      if (activeUserIdRef.current !== actingUserId) return;
+      if (!result.success) {
+        // Not worth interrupting the reader for: the plane just shows as unread again and is saved on the next open.
+        console.error('[sky] could not save the read mark', result.error);
+        undo();
+      }
+    } catch (error) {
+      console.error(error);
+      if (activeUserIdRef.current === actingUserId) undo();
+    } finally {
+      pendingReadIds.current.delete(pendingKey);
+    }
+  };
+
   const handleOpenPlane = (plane: SkyPlane) => {
     setSelectedPlaneId(plane.id);
 
+    // Planes in the database: a signed-in reader's read mark belongs to the account and is saved in Supabase,
+    // so it survives a refresh, signing out and in, and other devices.
+    if (plane.source === 'live' && !isGuest) {
+      void markPlaneRead(plane.id);
+      return;
+    }
+
+    // Guests, local letters and sample planes: remembered on this device only.
     if (!readPlaneIds.includes(plane.id)) {
       setLocalStorageItem(READ_PLANES_KEY, JSON.stringify([...readPlaneIds, plane.id]));
     }
@@ -343,7 +408,7 @@ export default function SkyPage({ publicThoughts, isAuthenticated }: SkyPageProp
   const activePlanes = (isClient ? batch : []).map((plane, i) => ({
     ...plane,
     ...placements[i],
-    isRead: readPlaneIds.includes(plane.id),
+    isRead: plane.source === 'live' && !isGuest ? accountReadIds.has(plane.id) : readPlaneIds.includes(plane.id),
   }));
 
   return (

@@ -1,5 +1,6 @@
 import type { Letter, LetterStatus } from '@/types/letter';
 import { toMood } from '@/lib/mood';
+import type { DailyQuota } from '@/lib/quota';
 
 /** Status values stored in `public.thoughts.status`. ("folded" is the DB name for the UI's "kept".) */
 export type ThoughtStatus = 'draft' | 'folded' | 'sealed' | 'opened' | 'released';
@@ -33,13 +34,21 @@ export interface PublicThought {
   likedByMe: boolean;
 }
 
+/** Machine-readable reason attached to a failed action, so the UI can react without reading the message text. */
+export type ThoughtErrorCode = 'UNAUTHENTICATED' | 'DAILY_LIMIT';
+
 /** Result of liking / unliking a plane: the new state and the real total from the database. */
 export type ToggleLikeResult =
   | { success: true; liked: boolean; likes: number }
-  | { success: false; error: string; code?: 'UNAUTHENTICATED' };
+  | { success: false; error: string; code?: ThoughtErrorCode };
 
-/** Result shape shared by the mutation server actions. */
-export type ThoughtActionResult = { success: true } | { success: false; error: string };
+/**
+ * Result shape shared by the mutation server actions.
+ * After a release, `quota` is the account's release count read back from the database, so the UI can show it at once.
+ */
+export type ThoughtActionResult =
+  | { success: true; quota?: DailyQuota | null }
+  | { success: false; error: string; code?: ThoughtErrorCode };
 
 /** UI status ("kept") -> database status ("folded"). */
 export const toThoughtStatus = (status: LetterStatus): ThoughtStatus => {

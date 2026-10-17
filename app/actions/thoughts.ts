@@ -5,8 +5,9 @@ import { getAuthUserId } from '@/lib/auth'
 import { revalidatePath } from 'next/cache'
 import { cookies } from 'next/headers'
 import { toMood } from '@/lib/mood'
-import { DAILY_RELEASE_LIMIT_MESSAGE } from '@/lib/quota'
-import type { PublicThought, ThoughtActionResult, ThoughtRow, ThoughtStatus, ToggleLikeResult } from '@/lib/thoughts'
+import { DAILY_RELEASE_LIMIT_MESSAGE, type DailyQuota } from '@/lib/quota'
+import { getUserQuota } from '@/app/actions/quota'
+import type { PublicThought, ThoughtActionResult, ThoughtErrorCode, ThoughtRow, ThoughtStatus, ToggleLikeResult } from '@/lib/thoughts'
 
 const MAX_TITLE_LENGTH = 120
 const MAX_CONTENT_LENGTH = 10_000
@@ -27,7 +28,7 @@ export interface CreateThoughtInput {
 
 export type CreateThoughtResult =
   | { success: true; data: ThoughtRow }
-  | { success: false; error: string; code?: 'UNAUTHENTICATED' }
+  | { success: false; error: string; code?: ThoughtErrorCode }
 
 const UNAUTHENTICATED = { success: false, error: 'Please sign in to continue.', code: 'UNAUTHENTICATED' } as const
 
@@ -40,15 +41,42 @@ interface DatabaseError {
 
 const isDevelopment = process.env.NODE_ENV !== 'production'
 
+/** Postgres codes a trigger gets from RAISE EXCEPTION (P0001) or a data exception (22000). */
+const RAISED_ERROR_CODES = new Set(['P0001', '22000'])
+/** Wording that can only mean "daily limit reached", whatever error code carries it. */
+const DAILY_LIMIT_MARKER = /DAILY_RELEASE_LIMIT|DAILY_LIMIT|QUOTA/i
+/** Wording that means the same, but is only trusted when it comes with a raised-exception code. */
+const DAILY_LIMIT_WORDS = /daily|limit|exceed|too many|per day|plane|release/i
+
+/**
+ * True when the database refused a write because the account used up its daily plane releases
+ * (the quota trigger, supabase/quotas.sql). It is a normal answer, not a fault, so it is recognised from the code
+ * and the wording together instead of one exact message: a reworded trigger must not leak raw SQL to the user.
+ * A raised exception while releasing (`status=released`) is the same rule even if its text says nothing useful.
+ */
+function isDailyLimitError(error: DatabaseError | null, note?: string): boolean {
+  if (!error) return false
+  const text = [error.message, error.details, error.hint].filter(Boolean).join(' ')
+  if (DAILY_LIMIT_MARKER.test(text)) return true
+  if (!error.code || !RAISED_ERROR_CODES.has(error.code)) return false
+  return DAILY_LIMIT_WORDS.test(text) || !!note?.includes('status=released')
+}
+
 /**
  * Logs the full database error on the server and returns the message shown to the user.
  * In development the real cause (Postgres code + message) is appended, so a failure is diagnosable from
  * the toast / modal itself. In production users only see the friendly sentence.
  */
-function failure(context: string, friendly: string, error: DatabaseError | null, note?: string): { success: false; error: string } {
+function failure(
+  context: string,
+  friendly: string,
+  error: DatabaseError | null,
+  note?: string
+): { success: false; error: string; code?: ThoughtErrorCode } {
   // The daily plane limit is a normal answer from the database (trigger in supabase/quotas.sql), not a fault.
-  if (error?.message?.includes('DAILY_RELEASE_LIMIT')) {
-    return { success: false, error: DAILY_RELEASE_LIMIT_MESSAGE }
+  // The reader only ever sees the friendly sentence: no SQL code, no raw message, not even in development.
+  if (isDailyLimitError(error, note)) {
+    return { success: false, error: DAILY_RELEASE_LIMIT_MESSAGE, code: 'DAILY_LIMIT' }
   }
 
   console.error(`[thoughts] ${context} failed`, {
@@ -81,8 +109,11 @@ function failure(context: string, friendly: string, error: DatabaseError | null,
       break
   }
 
+  // The technical detail (always in the server log above) is only appended in development, and never for raised
+  // exceptions (P0001 / 22000): those are rules of the app, not something a reader should see as SQL.
   const detail = error ? `${error.code ?? 'error'}: ${error.message}` : note
-  return { success: false, error: isDevelopment && detail ? `${reason} [${detail}]` : reason }
+  const showDetail = isDevelopment && !!detail && !(error?.code && RAISED_ERROR_CODES.has(error.code))
+  return { success: false, error: showDetail ? `${reason} [${detail}]` : reason }
 }
 
 /**
@@ -240,7 +271,18 @@ export async function changeThoughtStatus(id: string, status: ThoughtStatus): Pr
   }
 
   revalidateThoughtPages()
-  return { success: true }
+
+  // A release (including sending a kept letter from the Jar) just used one of the day's planes: read the real count
+  // back, so the "Sent Planes" counter changes on screen at once. Never let this read fail a release that worked.
+  let quota: DailyQuota | null = null
+  if (status === 'released') {
+    try {
+      quota = (await getUserQuota())?.release ?? null
+    } catch (quotaError) {
+      console.error('[thoughts] could not read the release quota after releasing', quotaError)
+    }
+  }
+  return { success: true, quota }
 }
 
 // 5. Permanently delete a thought you own (from the Jar or a sent plane).
@@ -291,4 +333,49 @@ export async function toggleThoughtLike(thoughtId: string): Promise<ToggleLikeRe
   revalidatePath('/sky')
   revalidatePath('/sent-planes')
   return { success: true, liked: row.liked, likes: row.likes }
+}
+
+// 7. Read marks for The Sky. Which planes this account has already opened, saved per account in the database
+//    (public.user_thought_reads), so they stay "Read" after a refresh, a sign-out and a sign-in, or on another device.
+//    Both functions take no account id: the database reads it from auth.uid() (the session cookie), never from the client.
+
+/** Ids of the planes the signed-in reader has opened. Empty for guests, and if the feature is not installed yet. */
+export async function getReadThoughtIds(): Promise<string[]> {
+  const userId = await getAuthUserId()
+  if (!userId) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase.rpc('read_thought_ids')
+
+  // Never break the sky over read marks: on failure the planes simply show as unread.
+  if (error) {
+    console.error('[thoughts] read_thought_ids failed', { code: error.code, message: error.message })
+    return []
+  }
+
+  // `RETURNS SETOF uuid` arrives as a plain array of ids; also tolerate one-column rows.
+  const ids = (Array.isArray(data) ? data : []).map((item: unknown) =>
+    typeof item === 'object' && item !== null ? Object.values(item)[0] : item
+  )
+  return ids.filter((id): id is string => typeof id === 'string' && UUID_PATTERN.test(id))
+}
+
+/** Saves that the signed-in reader opened a plane. Safe to repeat: the database ignores a plane already marked. */
+export async function markThoughtRead(thoughtId: string): Promise<ThoughtActionResult> {
+  if (typeof thoughtId !== 'string' || !UUID_PATTERN.test(thoughtId)) {
+    return { success: false, error: 'This plane cannot be marked as read.' }
+  }
+
+  const userId = await getAuthUserId()
+  if (!userId) return UNAUTHENTICATED
+
+  const supabase = await createClient()
+  const { error } = await supabase.rpc('mark_thought_read', { p_thought_id: thoughtId })
+  if (error) {
+    return failure('markThoughtRead', 'We could not save that you read this plane.', error)
+  }
+
+  // No revalidatePath here on purpose: the page already shows the plane as read, and refreshing it
+  // would reshuffle the sky under the reader's cursor.
+  return { success: true }
 }

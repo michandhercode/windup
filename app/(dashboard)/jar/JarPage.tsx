@@ -6,6 +6,7 @@ import { useLetters } from '@/app/providers';
 import { Letter, LetterStatus } from '@/types/letter';
 import { DAILY_LIMIT_MESSAGE, getDailyReleaseStatus, tryConsumeDailyRelease } from '@/lib/daily-release';
 import { changeThoughtStatus, deleteThought } from '@/app/actions/thoughts';
+import { refreshDailyQuota } from '@/lib/quota-client';
 import { toThoughtStatus, type ThoughtActionResult } from '@/lib/thoughts';
 import { useToast } from '@/components/Toast';
 import AlertModal from '@/components/AlertModal';
@@ -181,12 +182,20 @@ export default function JarPage({ initialThoughts, isAuthenticated }: JarPagePro
 
     if (!result.success) {
       setAnimatingLetterId(null);
-      setErrorMessage(result.error);
+      if (result.code === 'DAILY_LIMIT') {
+        // The database says today's planes are used up (this screen's count was behind): show the friendly
+        // limit message, and catch the Sent Planes counter up.
+        setIsLimitModalOpen(true);
+        void refreshDailyQuota('release', { fresh: true });
+      } else {
+        setErrorMessage(result.error);
+      }
       return;
     }
 
-    // Authoritative count (also resets the counter on a new calendar day)
-    tryConsumeDailyRelease();
+    // The action returns the real count read from the database, so the "Sent Planes" counter changes at once
+    // (and resets on a new calendar day).
+    tryConsumeDailyRelease(result.quota);
 
     setLetters((prev) =>
       prev.map((l) =>

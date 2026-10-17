@@ -8,7 +8,8 @@ import {
 } from 'ai';
 import { getAuthUserId } from '@/lib/auth';
 import { createClient } from '@/utils/supabase/server';
-import { MIMI_RESTING_MESSAGE } from '@/lib/quota';
+import { MIMI_ENERGY_PART, MIMI_RESTING_MESSAGE, parseMimiConsume, type MimiEnergyPayload, type QuotaSnapshot } from '@/lib/quota';
+import { getUserQuota } from '@/app/actions/quota';
 import { MIMI_SYSTEM_PROMPT } from '@/lib/ai/prompts';
 
 // Streaming responses may run longer than the default serverless timeout.
@@ -91,7 +92,7 @@ export async function POST(req: Request) {
     // A reply that then fails still uses one message (there is deliberately no way to hand a unit back).
     stage = 'daily quota (consume_mimi_message)';
     const supabase = await createClient();
-    const { data: allowed, error: quotaError } = await supabase.rpc('consume_mimi_message');
+    const { data: consumed, error: quotaError } = await supabase.rpc('consume_mimi_message');
     if (quotaError) {
       console.error('[api/chat] consume_mimi_message failed. Has supabase/quotas.sql been run?', {
         code: quotaError.code,
@@ -102,6 +103,8 @@ export async function POST(req: Request) {
         { status: 503 }
       );
     }
+    // consume_mimi_message() answers whether the message was allowed and, in its current version, the energy left.
+    const { allowed, quota: consumedQuota } = parseMimiConsume(consumed);
     if (!allowed) {
       return Response.json({ error: MIMI_RESTING_MESSAGE, code: 'DAILY_LIMIT' }, { status: 429 });
     }
@@ -144,11 +147,25 @@ export async function POST(req: Request) {
       );
     }
 
+    // The battery shown in the browser must match the database. Normally consume_mimi_message() already returned
+    // the new energy; if it did not (an older version only said yes/no), read it back with get_user_quota().
+    stage = 'read Mimi energy (get_user_quota)';
+    let mimiQuota: QuotaSnapshot | null = consumedQuota;
+    if (!mimiQuota) {
+      const fresh = (await getUserQuota())?.mimi;
+      mimiQuota = fresh ? { used: fresh.used, limit: fresh.limit } : null;
+    }
+    const energy: MimiEnergyPayload | null = mimiQuota
+      ? { ...mimiQuota, remaining: Math.max(0, mimiQuota.limit - mimiQuota.used) }
+      : null;
+
     // Send the reply in the UI message stream format that useChat() from @ai-sdk/react (v5+) expects.
     stage = 'createUIMessageStreamResponse';
     const textId = crypto.randomUUID();
     const stream = createUIMessageStream({
       execute: ({ writer }) => {
+        // Transient: delivered to useChat's onData only, never stored as part of the conversation.
+        if (energy) writer.write({ type: MIMI_ENERGY_PART, data: energy, transient: true });
         writer.write({ type: 'text-start', id: textId });
         writer.write({ type: 'text-delta', id: textId, delta: replyText });
         writer.write({ type: 'text-end', id: textId });

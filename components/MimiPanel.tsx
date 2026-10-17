@@ -5,8 +5,8 @@ import { useChat } from '@ai-sdk/react';
 import { DefaultChatTransport } from 'ai';
 import { Loader2, Moon, Send } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
-import { MIMI_RESTING_MESSAGE } from '@/lib/quota';
-import { recordDailyQuotaUse, refreshDailyQuota, useDailyQuota } from '@/lib/quota-client';
+import { MIMI_ENERGY_PART, MIMI_RESTING_MESSAGE, parseMimiEnergyPayload } from '@/lib/quota';
+import { applyDailyQuotaSnapshot, recordDailyQuotaUse, refreshDailyQuota, useDailyQuota } from '@/lib/quota-client';
 
 interface MimiPanelProps {
   /** Mimi's API route requires a Supabase session, so guests see a sign-in note instead of the chat input. */
@@ -50,7 +50,7 @@ function useAuthUserId(): string | null | undefined {
 }
 
 /** Cute battery: one segment per message, draining as the day's messages are used. */
-function MimiBattery({ remaining, limit }: { remaining: number; limit: number }) {
+function MimiBattery({ remaining, limit, isLoaded }: { remaining: number; limit: number; isLoaded: boolean }) {
   const fillColor =
     remaining > 5 ? 'bg-emerald-500' : remaining > 2 ? 'bg-amber-400' : 'bg-rose-400';
 
@@ -75,7 +75,7 @@ function MimiBattery({ remaining, limit }: { remaining: number; limit: number })
         <span className="ml-0.5 h-2.5 w-1 rounded-r-sm bg-current/30" />
       </div>
       <p className="text-[10px] font-semibold tracking-wide opacity-70">
-        {remaining === 0 ? 'Resting' : `Energy ${remaining}/${limit}`}
+        {!isLoaded ? `Energy -/${limit}` : remaining === 0 ? 'Resting' : `Energy ${remaining}/${limit}`}
       </p>
     </div>
   );
@@ -94,11 +94,24 @@ interface MimiChatProps extends MimiPanelProps {
 }
 
 function MimiChat({ isAuthenticated, userId }: MimiChatProps) {
-  const { messages, sendMessage, status, error } = useChat({ transport: chatTransport });
+  const { messages, sendMessage, status, error } = useChat({
+    transport: chatTransport,
+    // /api/chat sends the energy returned by consume_mimi_message() with every reply: show it immediately.
+    onData: (part: { type: string; data?: unknown }) => {
+      if (part.type !== MIMI_ENERGY_PART) return;
+      const energy = parseMimiEnergyPayload(part.data);
+      if (energy) applyDailyQuotaSnapshot('mimi', userId, energy);
+    },
+  });
   const [input, setInput] = useState('');
   const logRef = useRef<HTMLDivElement>(null);
   // Server-backed and account-scoped: empty for guests, and dropped the moment the account changes.
-  const { remaining, limit, isLimitReached: isResting } = useDailyQuota('mimi');
+  const { remaining, limit, isLimitReached: isResting, isLoaded } = useDailyQuota('mimi');
+
+  // Read the real battery from get_user_quota() as soon as the panel opens for a signed-in account.
+  useEffect(() => {
+    if (userId) void refreshDailyQuota('mimi');
+  }, [userId]);
 
   const isBusy = status === 'submitted' || status === 'streaming';
 
@@ -124,7 +137,7 @@ function MimiChat({ isAuthenticated, userId }: MimiChatProps) {
       wasBusyRef.current = true;
     } else if (wasBusyRef.current) {
       wasBusyRef.current = false;
-      void refreshDailyQuota('mimi');
+      void refreshDailyQuota('mimi', { fresh: true });
     }
   }, [isBusy]);
 
@@ -135,7 +148,9 @@ function MimiChat({ isAuthenticated, userId }: MimiChatProps) {
     // The battery belongs to an account, so wait until we know which one is signed in.
     if (!userId) return;
     // The server counts the message (and refuses it once the battery is empty); this only updates the display early.
-    recordDailyQuotaUse('mimi');
+    // No re-read here: the server has not counted it yet, so a read now would put the old number back.
+    // The exact energy arrives with the reply (onData above), and a final read runs when the reply finishes.
+    recordDailyQuotaUse('mimi', { refresh: false });
     sendMessage({ text });
     setInput('');
   };
@@ -167,7 +182,7 @@ function MimiChat({ isAuthenticated, userId }: MimiChatProps) {
         <p className="max-w-xs text-[11px] leading-relaxed opacity-75 break-words">
           Your quiet papercraft companion to help you reflect, write letters, and sort through your thoughts.
         </p>
-        <MimiBattery remaining={remaining} limit={limit} />
+        <MimiBattery remaining={remaining} limit={limit} isLoaded={!isAuthenticated || isLoaded} />
       </div>
 
       <div className="w-full min-w-0 space-y-4">

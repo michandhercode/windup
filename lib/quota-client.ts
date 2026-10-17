@@ -2,8 +2,8 @@
 
 import { useSyncExternalStore } from 'react';
 import { createClient } from '@/utils/supabase/client';
-import { getDailyQuota } from '@/app/actions/quota';
-import { DEFAULT_DAILY_LIMITS, type DailyQuota, type QuotaKind } from '@/lib/quota';
+import { getUserQuota } from '@/app/actions/quota';
+import { DEFAULT_DAILY_LIMITS, type DailyQuota, type QuotaKind, type QuotaSnapshot } from '@/lib/quota';
 
 /**
  * Browser-side mirror of the daily quotas that live in the database (see supabase/quotas.sql).
@@ -31,22 +31,65 @@ const listeners: Record<QuotaKind, Set<() => void>> = { release: new Set(), mimi
 let currentUserId: string | null | undefined = undefined;
 let started = false;
 
+/**
+ * Orders answers so an older one can never overwrite a newer one. Every request takes a ticket when it starts;
+ * a number pushed in by the server (see applyDailyQuotaSnapshot) takes one when it arrives. An answer is only
+ * applied if no newer number has landed for that kind in the meantime.
+ */
+let ticketCounter = 0;
+const appliedTicket: Record<QuotaKind, number> = { release: 0, mimi: 0 };
+
 const emit = (kind: QuotaKind) => listeners[kind].forEach((listener) => listener());
 const hasListeners = (kind: QuotaKind) => listeners[kind].size > 0;
+const anyListeners = () => KINDS.some(hasListeners);
 
-/** Asks the server for the real numbers. An answer for another account (a switch mid-request) is thrown away. */
-export async function refreshDailyQuota(kind: QuotaKind): Promise<void> {
+const clamp = ({ used, limit }: QuotaSnapshot): QuotaSnapshot => ({ used: Math.min(Math.max(used, 0), limit), limit });
+
+let inFlight: { owner: string; promise: Promise<void> } | null = null;
+
+/**
+ * Asks the server for the real numbers of both counters (one database call). An answer for another account
+ * (a switch mid-request) or one that is older than a number already shown is thrown away.
+ * Calls made while a read is already running share it, unless `fresh` is set (use that right after the
+ * database changed, so the read cannot be one that started before the change).
+ */
+export function refreshUserQuota({ fresh = false }: { fresh?: boolean } = {}): Promise<void> {
   const owner = currentUserId;
-  if (!owner) return;
-  try {
-    const result = await getDailyQuota(kind);
-    if (currentUserId !== owner) return;
-    if (result && result.userId !== owner) return;
-    quotas[kind] = result;
-    emit(kind);
-  } catch (error) {
-    console.error(`Could not load the ${kind} quota`, error);
-  }
+  if (!owner) return Promise.resolve();
+  if (!fresh && inFlight?.owner === owner) return inFlight.promise;
+
+  const ticket = ++ticketCounter;
+  // Created before the read starts, so the cleanup below can compare against it without touching an unassigned variable.
+  const entry: { owner: string; promise: Promise<void> } = { owner, promise: Promise.resolve() };
+  inFlight = entry;
+
+  entry.promise = (async () => {
+    try {
+      const result = await getUserQuota();
+      if (currentUserId !== owner || !result) return;
+
+      for (const kind of KINDS) {
+        const next = result[kind];
+        if (!next || next.userId !== owner) continue;
+        if (ticket < appliedTicket[kind]) continue; // a newer number is already on screen
+        appliedTicket[kind] = ticket;
+        quotas[kind] = next;
+        emit(kind);
+      }
+    } catch (error) {
+      console.error('Could not load the daily quotas', error);
+    } finally {
+      if (inFlight === entry) inFlight = null;
+    }
+  })();
+
+  return entry.promise;
+}
+
+/** Re-reads one counter from the server (both are fetched together by one database call). */
+export function refreshDailyQuota(kind: QuotaKind, options?: { fresh?: boolean }): Promise<void> {
+  void kind;
+  return refreshUserQuota(options);
 }
 
 function start() {
@@ -57,18 +100,20 @@ function start() {
     const next = session?.user?.id ?? null;
     if (next === currentUserId) return;
     currentUserId = next;
+    inFlight = null;
     // New account (or signed out): forget everything that belonged to the previous one, then load fresh numbers.
     KINDS.forEach((kind) => {
       quotas[kind] = EMPTY;
+      appliedTicket[kind] = 0;
       emit(kind);
-      if (next && hasListeners(kind)) void refreshDailyQuota(kind);
     });
+    if (next && anyListeners()) void refreshUserQuota({ fresh: true });
   });
 
   // A tab left open overnight must not keep yesterday's numbers.
   const refreshVisible = () => {
-    if (document.visibilityState === 'hidden') return;
-    KINDS.forEach((kind) => hasListeners(kind) && void refreshDailyQuota(kind));
+    if (document.visibilityState === 'hidden' || !anyListeners()) return;
+    void refreshUserQuota();
   };
   document.addEventListener('visibilitychange', refreshVisible);
   window.addEventListener('focus', refreshVisible);
@@ -80,7 +125,7 @@ const subscribers = Object.fromEntries(
     (onChange: () => void) => {
       start();
       listeners[kind].add(onChange);
-      if (currentUserId && !quotas[kind]) void refreshDailyQuota(kind);
+      if (currentUserId && !quotas[kind]) void refreshUserQuota();
       return () => {
         listeners[kind].delete(onChange);
       };
@@ -110,14 +155,27 @@ export function getDailyQuotaStatus(kind: QuotaKind): QuotaStatus {
 }
 
 /**
- * Shows one more unit as used right away (the server already counted it), then re-reads the truth.
- * Never counts for an unknown account.
+ * Puts a number the server just returned on screen right away (for example the energy left after
+ * consume_mimi_message()). Ignored (returns false) when it belongs to a different account than the one signed in here.
  */
-export function recordDailyQuotaUse(kind: QuotaKind): void {
+export function applyDailyQuotaSnapshot(kind: QuotaKind, userId: string | null | undefined, snapshot: QuotaSnapshot): boolean {
+  if (!userId || currentUserId !== userId) return false;
+  appliedTicket[kind] = ++ticketCounter;
+  quotas[kind] = { userId, ...clamp(snapshot) };
+  emit(kind);
+  return true;
+}
+
+/**
+ * Shows one more unit as used right away, then (unless `refresh` is false) re-reads the truth.
+ * Pass `refresh: false` when the server has NOT counted the unit yet (e.g. just before sending a chat message):
+ * a read made now would still return the old number and undo the update. Never counts for an unknown account.
+ */
+export function recordDailyQuotaUse(kind: QuotaKind, { refresh = true }: { refresh?: boolean } = {}): void {
   const quota = quotas[kind];
   if (quota && currentUserId === quota.userId) {
     quotas[kind] = { ...quota, used: Math.min(quota.used + 1, quota.limit) };
     emit(kind);
   }
-  void refreshDailyQuota(kind);
+  if (refresh) void refreshUserQuota({ fresh: true });
 }
