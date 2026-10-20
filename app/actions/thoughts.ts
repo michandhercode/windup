@@ -243,6 +243,38 @@ export async function getUserJarThoughts(): Promise<ThoughtRow[]> {
   return (data ?? []) as ThoughtRow[]
 }
 
+export interface SealedCapsule {
+  id: string
+  title: string | null
+  sealUntil: string
+}
+
+// Sealed time capsules of the signed-in account (lean: no content), oldest unlock date first
+export async function getSealedCapsules(): Promise<SealedCapsule[]> {
+  const userId = await getAuthUserId()
+  if (!userId) return []
+
+  const supabase = await createClient()
+  const { data, error } = await supabase
+    .from('thoughts')
+    .select('id, title, seal_until')
+    .eq('user_id', userId)
+    .eq('status', 'sealed')
+    .not('seal_until', 'is', null)
+    .order('seal_until', { ascending: true })
+
+  if (error) {
+    console.error('Error fetching sealed capsules:', error)
+    return []
+  }
+
+  return (data ?? []).map((row) => ({
+    id: row.id as string,
+    title: (row.title as string | null) ?? null,
+    sealUntil: row.seal_until as string,
+  }))
+}
+
 // 4. Move a thought between states: open a sealed letter, release to the Sky, or pull a plane back to the Jar.
 export async function changeThoughtStatus(id: string, status: ThoughtStatus): Promise<ThoughtActionResult> {
   const userId = await getAuthUserId()

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Settings, User, Database, Download, CheckCircle, AlertCircle, Info, Mail, FileText, X, Send, Bell, Lock } from 'lucide-react';
+import { Settings, User, Database, Download, CheckCircle, AlertCircle, Info, Mail, FileText, X, Send, Lock } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 import { useLocalStorageItem } from '@/lib/hooks/useLocalStorage';
 import { createClient } from '@/utils/supabase/client';
@@ -15,18 +15,14 @@ export default function SettingsPage() {
   // Saved values come from localStorage; the form only keeps what the user has typed so far.
   const savedName = useLocalStorageItem('windup_display_name');
   const savedEmail = useLocalStorageItem('windup_user_email');
-  const savedNotifications = useLocalStorageItem('windup_email_notifications');
 
   const [nameDraft, setNameDraft] = useState<string | null>(null);
-  const [notificationsDraft, setNotificationsDraft] = useState<boolean | null>(null);
 
   const displayName = nameDraft ?? (savedName || 'Anonymous');
   // Read-only: the email comes from the signed-in account and cannot be edited on this page.
   const email = savedEmail || 'scribe@windup.app';
-  const emailNotifications = notificationsDraft ?? (savedNotifications === null ? true : savedNotifications === 'true');
 
   const setDisplayName = (value: string) => setNameDraft(value);
-  const setEmailNotifications = (value: boolean) => setNotificationsDraft(value);
 
   const [savedSuccess, setSavedSuccess] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -99,7 +95,6 @@ export default function SettingsPage() {
 
       // Only mirror to localStorage after the backend save succeeded, so the UI never shows a name that was not saved.
       localStorage.setItem('windup_display_name', trimmedName);
-      localStorage.setItem('windup_email_notifications', emailNotifications.toString());
 
       setDisplayName(trimmedName);
 
@@ -148,7 +143,7 @@ export default function SettingsPage() {
       const exportLetters = await loadLettersForExport();
 
       const exportData = {
-        profile: { displayName, email, emailNotifications },
+        profile: { displayName, email },
         letters: exportLetters,
         exportedAt: new Date().toISOString(),
       };
@@ -199,7 +194,7 @@ export default function SettingsPage() {
             Settings & Preferences
           </h1>
           <p className="text-xs font-medium text-slate-600 dark:text-slate-300">
-            Manage your personal profile, email notifications, and data exports.
+            Manage your personal profile and data exports.
           </p>
         </div>
       </div>
@@ -214,7 +209,7 @@ export default function SettingsPage() {
             <h2 className="text-sm font-bold text-slate-800 dark:text-slate-200">
               Profile & Communication
             </h2>
-            <p className="text-[11px] text-slate-400 dark:text-slate-500">Personal identity and notification preferences</p>
+            <p className="text-[11px] text-slate-400 dark:text-slate-500">Manage your personal profile identity</p>
           </div>
         </div>
 
@@ -263,38 +258,9 @@ export default function SettingsPage() {
                 className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-800/60 text-slate-500 dark:text-slate-400 text-xs font-medium cursor-not-allowed select-all focus:outline-none"
               />
               <p className="text-[11px] text-slate-400 dark:text-slate-500 leading-snug">
-                Used for support responses, account security, and paper plane notifications. Your email is tied to your account and cannot be changed here.
+                Used for account security. Your email is tied to your account and cannot be changed here.
               </p>
             </div>
-          </div>
-
-          {/* Email Notification Toggle */}
-          <div className="pt-3 border-t border-slate-100 dark:border-slate-800 flex items-center justify-between gap-4">
-            <div className="space-y-0.5">
-              <label className="text-xs font-semibold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
-                <Bell className="w-3.5 h-3.5 text-sky-500" />
-                Email Notifications
-              </label>
-              <p className="text-[11px] text-slate-500 dark:text-slate-400">
-                Receive email alerts for support replies, paper plane updates, and community news.
-              </p>
-            </div>
-
-            <button
-              type="button"
-              role="switch"
-              aria-checked={emailNotifications}
-              onClick={() => setEmailNotifications(!emailNotifications)}
-              className={`relative inline-flex h-6 w-11 shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-sky-400 ${
-                emailNotifications ? 'bg-sky-500' : 'bg-slate-200 dark:bg-slate-700'
-              }`}
-            >
-              <span
-                className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow-xs transition duration-200 ease-in-out ${
-                  emailNotifications ? 'translate-x-5' : 'translate-x-0'
-                }`}
-              />
-            </button>
           </div>
 
           {/* Save Button & Status */}
@@ -474,9 +440,9 @@ export default function SettingsPage() {
                     rows={4}
                     value={supportMessage}
                     onChange={(e) => setSupportMessage(e.target.value)}
-                    placeholder="Type your message, suggestion, or feedback here..."
-                    required
-                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50/50 dark:bg-slate-800 text-slate-800 dark:text-slate-100 text-xs font-medium focus:ring-2 focus:ring-sky-400 focus:outline-none transition-all resize-none"
+                    placeholder="Customer support messaging is temporarily unavailable and will return in a future update."
+                    disabled={true}
+                    className="w-full px-4 py-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-100/80 dark:bg-slate-800/60 text-slate-800 dark:text-slate-100 text-xs font-medium placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none transition-all resize-none cursor-not-allowed opacity-70"
                   />
                 </div>
 
@@ -488,7 +454,8 @@ export default function SettingsPage() {
                   )}
                   <button
                     type="submit"
-                    className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-slate-800 dark:bg-slate-100 text-white dark:text-slate-900 text-xs font-semibold hover:opacity-90 transition-opacity cursor-pointer shadow-xs"
+                    disabled={true}
+                    className="flex items-center gap-1.5 px-5 py-2 rounded-xl bg-slate-200 dark:bg-slate-800 text-slate-400 dark:text-slate-500 text-xs font-semibold cursor-not-allowed opacity-70"
                   >
                     <Send className="w-3.5 h-3.5" /> Send Message
                   </button>

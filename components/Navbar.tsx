@@ -7,6 +7,7 @@ import { useTheme } from 'next-themes';
 import { useIsClient, useLocalStorageItem } from '@/lib/hooks/useLocalStorage';
 import { createClient } from '@/utils/supabase/client';
 import { clearLocalProfile } from '@/lib/auth-client';
+import MailButton from '@/components/MailButton';
 import { LogOut, Moon, Sun, LogIn, Eye, Menu, X, Settings, type LucideIcon } from 'lucide-react';
 
 interface NavLink {
@@ -138,6 +139,9 @@ export default function Navbar() {
 
         {/* User / Theme section */}
         <div className="flex items-center gap-2 sm:gap-2.5 shrink-0">
+          {/* Mail: sealed time capsules ready to open */}
+          {mounted && !isGuest && <MailButton />}
+
           {/* Dark mode toggle */}
           <button
             type="button"

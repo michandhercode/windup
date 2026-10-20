@@ -12,7 +12,6 @@ import { useToast } from '@/components/Toast';
 import AlertModal from '@/components/AlertModal';
 import LetterCard from '@/components/LetterCard';
 import SealedOpenConfirm from '@/components/SealedOpenConfirm';
-import SealedReadyBanner from '@/components/SealedReadyBanner';
 import ViewLetterModal, { LetterModalAction } from '@/components/ViewLetterModal';
 import { formatLetterDate } from '@/lib/format';
 import { Box, Edit3, Trash2, AlertTriangle, Send, PenLine } from 'lucide-react';
@@ -238,9 +237,6 @@ export default function JarPage({ initialThoughts, isAuthenticated }: JarPagePro
           </div>
         </div>
       </div>
-
-      {/* Personal notice: sealed time capsules that are ready to open */}
-      <SealedReadyBanner letters={privateJarLetters} onOpen={(letter) => setLetterToOpen(letter)} />
 
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
