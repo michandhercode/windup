@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { LogIn, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import FieldError, { getAuthInputClass } from '@/components/FieldError';
+import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { validateEmail, validatePassword } from '@/lib/validation';
 import { createClient } from '@/utils/supabase/client';
 import { getAuthErrorMessage, syncProfileFromUser } from '@/lib/auth-client';
@@ -15,12 +16,18 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
   const router = useRouter();
   const searchParams = useSearchParams();
-  // /auth/callback sends people here when an emailed confirmation link is invalid or expired
-  const [error, setError] = useState(() =>
-    searchParams.get('error') === 'confirmation_failed'
-      ? 'That confirmation link is invalid or has expired. Please sign in, or sign up again.'
-      : ''
-  );
+  // /auth/callback sends people here when an emailed confirmation link is invalid or expired,
+  // or when Google sign-in was cancelled / failed
+  const [error, setError] = useState(() => {
+    const errorParam = searchParams.get('error');
+    if (errorParam === 'confirmation_failed') {
+      return 'That confirmation link is invalid or has expired. Please sign in, or sign up again.';
+    }
+    if (errorParam === 'oauth_failed') {
+      return 'Google sign-in was cancelled or did not complete. Please try again.';
+    }
+    return '';
+  });
   const [isLoading, setIsLoading] = useState(false);
   const [touched, setTouched] = useState({ email: false, password: false });
 
@@ -172,6 +179,13 @@ export default function LoginPage() {
           <span className="flex-shrink mx-4 text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">or</span>
           <div className="flex-grow border-t border-slate-300 dark:border-slate-700"></div>
         </div>
+
+        {/* Google Sign-In (signs in existing accounts and creates new ones automatically) */}
+        <GoogleSignInButton
+          onError={setError}
+          disabled={isLoading}
+          label="Continue with Google"
+        />
 
         {/* Footer Link */}
         <div className="text-center pt-1">

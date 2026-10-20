@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { User, Lock, Mail, ArrowRight, Sparkles, AlertCircle, Eye, EyeOff } from 'lucide-react';
 import FieldError, { getAuthInputClass } from '@/components/FieldError';
+import GoogleSignInButton from '@/components/GoogleSignInButton';
 import { validateDisplayName, validateEmail, validatePassword } from '@/lib/validation';
 import { createClient } from '@/utils/supabase/client';
 import { getAuthErrorMessage, syncProfileFromUser } from '@/lib/auth-client';
@@ -244,6 +245,13 @@ export default function SignupPage() {
           <span className="flex-shrink mx-4 text-[10px] uppercase tracking-wider text-slate-500 dark:text-slate-400 font-bold">or</span>
           <div className="flex-grow border-t border-slate-300 dark:border-slate-700"></div>
         </div>
+
+        {/* Google Sign-Up (creates the account on first use, logs in if it already exists) */}
+        <GoogleSignInButton
+          onError={setError}
+          disabled={isLoading}
+          label="Sign up with Google"
+        />
 
         {/* Footer Link */}
         <div className="text-center pt-1">

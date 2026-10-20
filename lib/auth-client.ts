@@ -14,10 +14,23 @@ const KEYS = {
   guest: 'windup_is_guest',
 } as const;
 
-/** The display name chosen at sign-up (stored in user metadata), or a friendly one derived from the email. */
+/**
+ * The display name chosen at sign-up or in Settings (stored in user metadata). Accounts created with Google
+ * have no such value, so they fall back to the first name Google provides, then to a name derived from the email.
+ */
 export const getDisplayName = (user: User): string => {
   const fromMetadata = user.user_metadata?.display_name;
   if (typeof fromMetadata === 'string' && fromMetadata.trim()) return fromMetadata.trim();
+
+  // Google fills these in automatically. Windup display names are a single word, so keep the first word.
+  const googleName = [
+    user.user_metadata?.given_name,
+    user.user_metadata?.full_name,
+    user.user_metadata?.name,
+  ].find((value): value is string => typeof value === 'string' && value.trim().length > 0);
+  const googleFirstName = googleName?.trim().split(/\s+/)[0];
+  if (googleFirstName) return googleFirstName;
+
   const prefix = user.email?.split('@')[0] || 'Scribe';
   return prefix.charAt(0).toUpperCase() + prefix.slice(1);
 };
