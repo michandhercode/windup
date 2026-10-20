@@ -14,6 +14,11 @@ const MAX_CONTENT_LENGTH = 10_000
 const PUBLIC_FEED_LIMIT = 100
 const UUID_PATTERN = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
 
+const THOUGHT_STATUSES: readonly ThoughtStatus[] = ['draft', 'folded', 'sealed', 'opened', 'released']
+/** Server actions can be called with any payload, so statuses are checked at runtime, not just by TypeScript. */
+const isThoughtStatus = (value: unknown): value is ThoughtStatus =>
+  typeof value === 'string' && (THOUGHT_STATUSES as readonly string[]).includes(value)
+
 export interface CreateThoughtInput {
   /** Provide to update an existing thought you own (e.g. a draft being edited) instead of inserting. */
   id?: string
@@ -141,8 +146,18 @@ export async function createThought(data: CreateThoughtInput): Promise<CreateTho
 
   const supabase = await createClient()
 
-  const title = data.title?.trim() || null
-  const content = data.content?.trim() ?? ''
+  // Server actions are callable with any payload: check the runtime types, not just the TypeScript ones
+  if (
+    typeof data?.content !== 'string' ||
+    typeof data.is_private !== 'boolean' ||
+    !isThoughtStatus(data.status) ||
+    (data.id !== undefined && (typeof data.id !== 'string' || !UUID_PATTERN.test(data.id)))
+  ) {
+    return { success: false, error: 'Invalid request.' }
+  }
+
+  const title = typeof data.title === 'string' ? data.title.trim() || null : null
+  const content = data.content.trim()
 
   if (!content) return { success: false, error: 'Please write something before saving.' }
   if (content.length > MAX_CONTENT_LENGTH) return { success: false, error: 'This letter is too long to save.' }
@@ -152,13 +167,20 @@ export async function createThought(data: CreateThoughtInput): Promise<CreateTho
     return { success: false, error: 'Invalid visibility for this status.' }
   }
 
+  let sealUntil: string | null = null
+  if (data.status === 'sealed' && data.seal_until) {
+    const parsed = new Date(data.seal_until)
+    if (Number.isNaN(parsed.getTime())) return { success: false, error: 'Please choose a valid unlock date.' }
+    sealUntil = parsed.toISOString()
+  }
+
   const fields = {
     title,
-    content: data.content,
+    content, // the trimmed text that was validated, not the raw input
     mood: toMood(data.mood),
     is_private: data.is_private,
     status: data.status,
-    seal_until: data.status === 'sealed' ? data.seal_until ?? null : null,
+    seal_until: sealUntil,
   }
 
   const query = data.id
@@ -280,6 +302,10 @@ export async function changeThoughtStatus(id: string, status: ThoughtStatus): Pr
   const userId = await getAuthUserId()
   if (!userId) return UNAUTHENTICATED
 
+  if (typeof id !== 'string' || !UUID_PATTERN.test(id) || !isThoughtStatus(status)) {
+    return { success: false, error: 'Invalid request.' }
+  }
+
   const supabase = await createClient()
 
   const { data, error } = await supabase
@@ -321,6 +347,10 @@ export async function changeThoughtStatus(id: string, status: ThoughtStatus): Pr
 export async function deleteThought(id: string): Promise<ThoughtActionResult> {
   const userId = await getAuthUserId()
   if (!userId) return UNAUTHENTICATED
+
+  if (typeof id !== 'string' || !UUID_PATTERN.test(id)) {
+    return { success: false, error: 'Invalid request.' }
+  }
 
   const supabase = await createClient()
 

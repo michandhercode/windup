@@ -24,6 +24,7 @@ const MODEL_CHAIN = (process.env.GEMINI_MODELS ?? 'gemini-3.8-flash,gemini-3.6-f
 
 const MAX_MESSAGES = 6; // only the most recent turns are sent to the model
 const MAX_TEXT_LENGTH = 6000; // per docs/4_API_ROUTES.md: Mimi text 1–6,000 characters
+const MAX_TOTAL_CHARS = 12_000; // across all messages sent to the model, so earlier turns cannot be used to inflate cost
 
 // Replies stay short because the system prompt asks for it, not because of this limit. The limit is generous on
 // purpose: Gemini models can spend part of it on internal "thinking", and a tight cap cuts replies off mid-sentence.
@@ -32,10 +33,42 @@ const MAX_OUTPUT_TOKENS = 1024;
 const FRIENDLY_ERROR = 'Mimi is taking a short pause. Please try again in a moment.';
 const IS_DEV = process.env.NODE_ENV === 'development';
 
-function textOf(message: UIMessage): string {
-  return message.parts
-    .map((part) => (part.type === 'text' ? part.text : ''))
-    .join('');
+/**
+ * The browser sends the whole conversation, so nothing in it can be trusted. This keeps only user/assistant TEXT:
+ * client-supplied "system" messages (which would override Mimi's instructions), file/tool parts and oversized
+ * input are dropped or rejected. Returns null when the input is too large.
+ */
+function sanitizeMessages(raw: unknown): UIMessage[] | null {
+  if (!Array.isArray(raw)) return null;
+
+  const clean: UIMessage[] = [];
+  let total = 0;
+
+  for (const item of raw.slice(-MAX_MESSAGES)) {
+    const message = item as { id?: unknown; role?: unknown; parts?: unknown };
+    if (message?.role !== 'user' && message?.role !== 'assistant') continue;
+
+    const text = Array.isArray(message.parts)
+      ? message.parts
+          .map((part: { type?: unknown; text?: unknown }) =>
+            part?.type === 'text' && typeof part.text === 'string' ? part.text : ''
+          )
+          .join('')
+      : '';
+    if (!text.trim()) continue;
+
+    if (text.length > MAX_TEXT_LENGTH) return null;
+    total += text.length;
+    if (total > MAX_TOTAL_CHARS) return null;
+
+    clean.push({
+      id: typeof message.id === 'string' ? message.id : crypto.randomUUID(),
+      role: message.role,
+      parts: [{ type: 'text', text }],
+    });
+  }
+
+  return clean;
 }
 
 function describeError(error: unknown): string {
@@ -68,7 +101,7 @@ export async function POST(req: Request) {
     }
 
     stage = 'parse request body';
-    let messages: UIMessage[];
+    let messages: unknown;
     try {
       const body = await req.json();
       messages = body?.messages;
@@ -76,14 +109,8 @@ export async function POST(req: Request) {
       return Response.json({ error: 'Invalid request.' }, { status: 400 });
     }
 
-    if (!Array.isArray(messages) || messages.length === 0) {
-      return Response.json({ error: 'Invalid request.' }, { status: 400 });
-    }
-
-    const recent = messages.slice(-MAX_MESSAGES);
-    const lastUser = [...recent].reverse().find((m) => m.role === 'user');
-    const lastText = lastUser ? textOf(lastUser).trim() : '';
-    if (!lastText || lastText.length > MAX_TEXT_LENGTH) {
+    const recent = sanitizeMessages(messages);
+    if (!recent || recent.length === 0 || recent[recent.length - 1].role !== 'user') {
       return Response.json({ error: 'Invalid request.' }, { status: 400 });
     }
 

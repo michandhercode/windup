@@ -22,6 +22,23 @@ export const dynamic = 'force-dynamic';
 const hookError = (status: number, message: string) =>
   NextResponse.json({ error: { http_code: status, message } }, { status });
 
+const MAX_NAME_LENGTH = 30;
+
+/**
+ * The display name is chosen by whoever started the sign-up, which is not always the person who receives this email
+ * (anyone can start a sign-up with someone else's address). So it is cleaned before it goes into an official
+ * Windup email: no links, no angle brackets or control characters, and a short length.
+ */
+function cleanDisplayName(value: unknown): string | null {
+  if (typeof value !== 'string') return null;
+  const cleaned = value
+    .replace(/https?:\/\/\S+|www\.\S+/gi, '')
+    .replace(/[<>\u0000-\u001f]/g, '')
+    .trim()
+    .slice(0, MAX_NAME_LENGTH);
+  return cleaned || null;
+}
+
 export async function POST(request: NextRequest) {
   const secret = process.env.SEND_EMAIL_HOOK_SECRET;
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -58,7 +75,7 @@ export async function POST(request: NextRequest) {
     return hookError(400, 'Missing token data.');
   }
 
-  const displayName = typeof user.user_metadata?.display_name === 'string' ? user.user_metadata.display_name : null;
+  const displayName = cleanDisplayName(user.user_metadata?.display_name);
   const content = authEmail({ type, name: displayName, actionUrl, code: emailData.token });
 
   const result = await sendBrevoEmail({

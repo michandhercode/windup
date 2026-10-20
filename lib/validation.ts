@@ -1,6 +1,7 @@
 /** Shared form validators. Each returns an error message, or '' when the value is valid. */
 
 export const MIN_PASSWORD_LENGTH = 8;
+export const MAX_DISPLAY_NAME_LENGTH = 30;
 
 // local-part @ domain . tld  (e.g. user@domain.com, first.last+tag@mail.example.co)
 export const EMAIL_REGEX = /^[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)*\.[A-Za-z]{2,}$/;
@@ -24,5 +25,8 @@ export const validateDisplayName = (value: string): string => {
   const name = value.trim();
   if (!name) return 'Display name is required.';
   if (/\s/.test(name)) return 'Please enter a single display name only (no spaces).';
+  if (name.length > MAX_DISPLAY_NAME_LENGTH) {
+    return `Display name must be ${MAX_DISPLAY_NAME_LENGTH} characters or fewer.`;
+  }
   return '';
 };
