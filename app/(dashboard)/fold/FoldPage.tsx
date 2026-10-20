@@ -414,7 +414,7 @@ function FoldContent({ isAuthenticated, initialThoughts }: FoldContentProps) {
                     if (errorMessage) setErrorMessage('');
                   }}
                   disabled={isAnimating}
-                  className="block w-full text-xs sm:text-sm font-serif placeholder:font-sans placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none bg-transparent resize-none leading-relaxed min-h-[260px]"
+                  className="block w-full text-xs sm:text-sm font-letter placeholder:font-letter placeholder:text-slate-400 dark:placeholder:text-slate-500 focus:outline-none bg-transparent resize-none leading-relaxed min-h-[260px]"
                 />
                 <div className={`flex justify-end text-[11px] mt-1 font-mono transition-colors ${
                   wordCount > MAX_WORDS ? 'text-rose-500 font-bold' : wordCount >= MAX_WORDS * 0.9 ? 'text-amber-500' : 'text-slate-400 dark:text-slate-500'

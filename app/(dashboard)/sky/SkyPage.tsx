@@ -2,7 +2,7 @@
 
 import { useState, useMemo, useRef, useEffect, useSyncExternalStore } from 'react';
 import { useRouter } from 'next/navigation';
-import { Heart, CheckCircle2, FoldHorizontal, UserCheck } from 'lucide-react';
+import { Heart, CheckCircle2, FoldHorizontal } from 'lucide-react';
 import { useLetters } from '@/app/providers';
 import { ALL_MOCK_POOL, isPublicPlane, getPlaneLikes, shouldShowSamplePlanes } from '@/lib/sky-planes';
 import ViewLetterModal, { LetterModalAction } from '@/components/ViewLetterModal';
@@ -147,6 +147,9 @@ function useAuthUserId(): string | null | undefined {
 export default function SkyPage({ publicThoughts, isAuthenticated, initialReadIds = NO_IDS }: SkyPageProps) {
   const router = useRouter();
   const { letters } = useLetters();
+  // First word of the saved profile name, used to label the user's own planes (null until a name is saved)
+  const savedName = useLocalStorageItem('windup_display_name');
+  const ownerName = savedName?.trim().split(/\s+/)[0] || null;
   // Store only the id; the plane itself is derived from live data so counts never go stale.
   const [selectedPlaneId, setSelectedPlaneId] = useState<string | null>(null);
   // The whole sky is derived from this seed; "Catch More Planes" just rolls a new one.
@@ -529,9 +532,8 @@ export default function SkyPage({ publicThoughts, isAuthenticated, initialReadId
 
                 {/* Ownership marker */}
                 {plane.isUserOwner && (
-                  <span className="absolute -bottom-1 left-1/2 -translate-x-1/2 flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-600 text-white text-[10px] font-bold shadow-sm border border-indigo-300">
-                    <UserCheck className="w-3 h-3" />
-                    You
+                  <span className="pointer-events-none absolute bottom-0.5 left-1/2 max-w-[7rem] -translate-x-1/2 truncate whitespace-nowrap rounded-full border border-white/70 bg-white/60 px-2.5 py-0.5 text-[10px] font-semibold leading-4 tracking-wide text-rose-700 shadow-sm backdrop-blur-md dark:border-white/15 dark:bg-slate-900/55 dark:text-rose-200">
+                    {ownerName ?? 'You'}
                   </span>
                 )}
               </button>
@@ -563,8 +565,9 @@ export default function SkyPage({ publicThoughts, isAuthenticated, initialReadId
         showCloseButton={false}
         byline={
           selectedPlane?.isUserOwner ? (
-            <span className="inline-flex items-center gap-1 text-indigo-600 dark:text-indigo-400 font-semibold">
-              <UserCheck className="w-3.5 h-3.5" /> Your Letter
+            <span className="inline-flex max-w-full items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-2.5 py-0.5 text-[11px] font-semibold text-rose-700 dark:border-rose-800 dark:bg-rose-950/60 dark:text-rose-200">
+              <span aria-hidden="true" className="h-1.5 w-1.5 shrink-0 rounded-full bg-rose-400 dark:bg-rose-300" />
+              <span className="truncate">{ownerName ? `${ownerName}’s Letter` : 'My Letter'}</span>
             </span>
           ) : (
             'Anonymous Plane'
@@ -581,10 +584,15 @@ export default function SkyPage({ publicThoughts, isAuthenticated, initialReadId
               >
                 Like ({selectedPlane.likes})
               </LetterModalAction>
-              <LetterModalAction icon={<FoldHorizontal className="w-4 h-4" />} onClick={requestClose}>
-                Refold Plane
-              </LetterModalAction>
             </>
+          )
+        }
+        // Refold Plane sits on the right; Like stays on the left
+        endActions={(requestClose) =>
+          selectedPlane && (
+            <LetterModalAction icon={<FoldHorizontal className="w-4 h-4" />} onClick={requestClose}>
+              Refold Plane
+            </LetterModalAction>
           )
         }
       />

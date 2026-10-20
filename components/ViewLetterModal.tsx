@@ -20,6 +20,8 @@ interface ViewLetterModalProps {
   byline?: ReactNode;
   /** Page-specific actions, rendered on the left of the footer. Can be a function to get the animated close handler. */
   actions?: ReactNode | ((requestClose: () => void) => ReactNode);
+  /** Primary action(s), pinned to the right of the footer (e.g. The Sky's "Refold Plane"). Same function form as `actions`. */
+  endActions?: ReactNode | ((requestClose: () => void) => ReactNode);
   /**
    * Show the footer "Close" button (default true). Pages whose own action already dismisses the
    * modal (e.g. The Sky's "Refold Plane") pass `false`. Backdrop click and ESC always close.
@@ -31,7 +33,7 @@ interface ViewLetterModalProps {
  * The single "read a letter" popup used by My Jar, The Sky and Sent Planes.
  * Layout: [date | mood] -> title -> scrollable letter -> [page actions | optional Close]
  */
-export default function ViewLetterModal({ letter, onClose, byline, actions, showCloseButton = true }: ViewLetterModalProps) {
+export default function ViewLetterModal({ letter, onClose, byline, actions, endActions, showCloseButton = true }: ViewLetterModalProps) {
   const [closing, setClosing] = useState(false);
   const onCloseRef = useRef(onClose);
   const isOpen = !!letter;
@@ -107,8 +109,8 @@ export default function ViewLetterModal({ letter, onClose, byline, actions, show
           </div>
 
           {/* Title */}
-          <div className="shrink-0 space-y-1">
-            <h2 id="view-letter-title" className="font-serif text-xl font-bold leading-snug text-slate-900 dark:text-slate-50 sm:text-2xl">
+          <div className="shrink-0 space-y-1.5">
+            <h2 id="view-letter-title" className="font-letter text-[1.375rem] font-bold leading-tight tracking-tight text-slate-900 dark:text-slate-50 sm:text-[1.75rem]">
               {letter.title || 'Untitled Letter'}
             </h2>
             {byline && <div className="text-xs font-medium text-slate-500 dark:text-slate-400">{byline}</div>}
@@ -116,9 +118,13 @@ export default function ViewLetterModal({ letter, onClose, byline, actions, show
 
           {/* Letter body */}
           <div className="custom-scrollbar min-h-0 flex-1 overflow-y-auto overscroll-contain border-y border-dashed border-slate-300/70 py-4 pr-2 sm:py-5 [@media(max-height:480px)]:py-2 dark:border-slate-700">
-            <p className="whitespace-pre-wrap font-serif text-[15px] leading-relaxed text-slate-700 dark:text-slate-200 sm:text-base">
-              {letter.content}
-            </p>
+            <div className="space-y-4 font-letter text-[15px] font-normal leading-[1.85] text-slate-700 dark:text-slate-200 sm:text-[17px] sm:leading-[1.9]">
+              {letter.content.split(/\n{2,}/).map((paragraph, i) => (
+                <p key={i} className="whitespace-pre-wrap">
+                  {paragraph}
+                </p>
+              ))}
+            </div>
           </div>
 
           {/* Footer: page actions + optional Close */}
@@ -126,14 +132,19 @@ export default function ViewLetterModal({ letter, onClose, byline, actions, show
             <div className="flex flex-wrap items-center gap-2">
               {typeof actions === 'function' ? actions(requestClose) : actions}
             </div>
-            {showCloseButton && (
-              <button
-                type="button"
-                onClick={requestClose}
-                className="max-sm:w-full sm:ml-auto cursor-pointer rounded-xl bg-slate-800 px-6 py-2.5 sm:py-2 text-xs font-semibold text-white shadow-xs transition-opacity hover:opacity-90 active:scale-95 dark:bg-slate-100 dark:text-slate-900"
-              >
-                Close
-              </button>
+            {(endActions || showCloseButton) && (
+              <div className="ml-auto flex flex-wrap items-center justify-end gap-2">
+                {typeof endActions === 'function' ? endActions(requestClose) : endActions}
+                {showCloseButton && (
+                  <button
+                    type="button"
+                    onClick={requestClose}
+                    className="max-sm:w-full cursor-pointer rounded-xl bg-slate-800 px-6 py-2.5 sm:py-2 text-xs font-semibold text-white shadow-xs transition-opacity hover:opacity-90 active:scale-95 dark:bg-slate-100 dark:text-slate-900"
+                  >
+                    Close
+                  </button>
+                )}
+              </div>
             )}
           </div>
         </div>

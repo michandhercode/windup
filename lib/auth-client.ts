@@ -54,6 +54,7 @@ const ACCOUNT_SCOPED_PREFIXES = [
   'windup_mimi_count',
   'sky_read_planes',
   'sky_liked_planes',
+  'windup_mimi_chat', // Mimi conversation history, saved per account as windup_mimi_chat:<user id>
 ] as const;
 
 /** Key that remembers which account this browser last showed. Managed by AuthSync only. */

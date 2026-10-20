@@ -2,18 +2,28 @@
 
 import { useEffect, useRef, useState, type FormEvent } from 'react';
 import { useChat } from '@ai-sdk/react';
-import { DefaultChatTransport } from 'ai';
+import { DefaultChatTransport, type UIMessage } from 'ai';
 import { Loader2, Moon, Send } from 'lucide-react';
 import { createClient } from '@/utils/supabase/client';
 import { MIMI_ENERGY_PART, MIMI_RESTING_MESSAGE, parseMimiEnergyPayload } from '@/lib/quota';
 import { applyDailyQuotaSnapshot, recordDailyQuotaUse, refreshDailyQuota, useDailyQuota } from '@/lib/quota-client';
+import { getLocalStorageItem, setLocalStorageItem } from '@/lib/hooks/useLocalStorage';
 
 interface MimiPanelProps {
   /** Mimi's API route requires a Supabase session, so guests see a sign-in note instead of the chat input. */
   isAuthenticated: boolean;
 }
 
-const MIMI_IMAGE_SRC = '/mimi/mimi_agent.webp';
+/** Mimi's avatar follows her daily battery: 10 to 6 full, 5 to 2 mid, 1 to 0 low. */
+const MIMI_IMAGE_FULL = '/mimi/mimi_fullbatt.webp';
+const MIMI_IMAGE_MID = '/mimi/mimi_midbatt.webp';
+const MIMI_IMAGE_LOW = '/mimi/mimi_lowbatt.webp';
+
+function getMimiImageSrc(batteryLevel: number): string {
+  if (batteryLevel >= 6) return MIMI_IMAGE_FULL;
+  if (batteryLevel >= 2) return MIMI_IMAGE_MID;
+  return MIMI_IMAGE_LOW;
+}
 
 /** Max characters per message to Mimi (keeps token use low and replies focused). */
 const MAX_INPUT_LENGTH = 400;
@@ -28,6 +38,42 @@ const COUNTER_WARN_RATIO = 0.9;
  * account signing in on this one. The browser only shows the numbers the server returned.
  */
 const REST_MESSAGE = MIMI_RESTING_MESSAGE;
+
+/**
+ * The conversation is saved per account in localStorage so it survives leaving the Fold page and coming back
+ * (the chat component unmounts on navigation, which used to wipe it). The key starts with `windup_mimi_chat`,
+ * which lib/auth-client.ts lists as account-scoped, so it is erased on sign-out or when another account signs in.
+ */
+const CHAT_STORAGE_PREFIX = 'windup_mimi_chat';
+/** Only the most recent messages are kept, so the saved copy stays small. */
+const MAX_STORED_MESSAGES = 40;
+
+const chatStorageKey = (userId: string) => `${CHAT_STORAGE_PREFIX}:${userId}`;
+
+function loadStoredMessages(userId: string): UIMessage[] {
+  try {
+    const raw = getLocalStorageItem(chatStorageKey(userId));
+    if (!raw) return [];
+    const parsed: unknown = JSON.parse(raw);
+    if (!Array.isArray(parsed)) return [];
+    // Only accept well-formed text messages; anything else in storage is ignored.
+    return parsed
+      .filter(
+        (m): m is UIMessage =>
+          !!m &&
+          typeof m.id === 'string' &&
+          (m.role === 'user' || m.role === 'assistant') &&
+          Array.isArray(m.parts)
+      )
+      .slice(-MAX_STORED_MESSAGES);
+  } catch {
+    return [];
+  }
+}
+
+function saveStoredMessages(userId: string, messages: UIMessage[]): void {
+  setLocalStorageItem(chatStorageKey(userId), JSON.stringify(messages.slice(-MAX_STORED_MESSAGES)));
+}
 
 // Created once at module level so the transport (and the chat) is stable across re-renders.
 const chatTransport = new DefaultChatTransport({ api: '/api/chat' });
@@ -94,7 +140,7 @@ interface MimiChatProps extends MimiPanelProps {
 }
 
 function MimiChat({ isAuthenticated, userId }: MimiChatProps) {
-  const { messages, sendMessage, status, error } = useChat({
+  const { messages, setMessages, sendMessage, status, error } = useChat({
     transport: chatTransport,
     // /api/chat sends the energy returned by consume_mimi_message() with every reply: show it immediately.
     onData: (part: { type: string; data?: unknown }) => {
@@ -114,6 +160,24 @@ function MimiChat({ isAuthenticated, userId }: MimiChatProps) {
   }, [userId]);
 
   const isBusy = status === 'submitted' || status === 'streaming';
+
+  // Restore this account's saved conversation when the chat mounts (e.g. after coming back to the Fold page).
+  useEffect(() => {
+    if (!userId) return;
+    const stored = loadStoredMessages(userId);
+    if (stored.length > 0) setMessages(stored);
+  }, [userId, setMessages]);
+
+  // Save the conversation once a reply has finished (not on every streamed chunk).
+  useEffect(() => {
+    if (!userId || messages.length === 0) return;
+    if (status !== 'ready' && status !== 'error') return;
+    saveStoredMessages(userId, messages);
+  }, [userId, messages, status]);
+
+  // Until the real battery is known (guests, or still loading) Mimi shows her full, welcoming state.
+  const batteryKnown = isAuthenticated && isLoaded;
+  const mimiImageSrc = getMimiImageSrc(batteryKnown ? remaining : limit);
 
   const inputLength = input.length;
   const showCounter = inputLength >= MAX_INPUT_LENGTH * COUNTER_SHOW_RATIO;
@@ -174,7 +238,7 @@ function MimiChat({ isAuthenticated, userId }: MimiChatProps) {
       {/* Intro: centered avatar, description directly below it, then the energy battery */}
       <div className="flex flex-col items-center gap-3 text-center">
         <img
-          src={MIMI_IMAGE_SRC}
+          src={mimiImageSrc}
           alt="Mimi companion"
           className="w-20 h-20 sm:w-24 sm:h-24 shrink-0 object-contain drop-shadow-md select-none"
           draggable={false}

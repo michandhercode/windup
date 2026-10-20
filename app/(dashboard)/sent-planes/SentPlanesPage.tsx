@@ -310,11 +310,11 @@ export default function SentPlanesPage({ publicThoughts, isAuthenticated, initia
                     </span>
                   </div>
 
-                  <div className="flex-1 space-y-2">
-                    <h3 className="line-clamp-1 font-serif text-base font-semibold leading-snug text-slate-900 dark:text-slate-50">
+                  <div className="flex-1 space-y-2.5">
+                    <h3 className="line-clamp-1 font-letter text-base font-semibold leading-snug tracking-tight text-slate-900 dark:text-slate-50">
                       {plane.title}
                     </h3>
-                    <p className="line-clamp-4 font-serif text-[13px] leading-relaxed text-slate-600 dark:text-slate-300">
+                    <p className="line-clamp-4 font-letter text-[13px] leading-[1.65] text-slate-600 dark:text-slate-300">
                       {plane.content}
                     </p>
                   </div>
