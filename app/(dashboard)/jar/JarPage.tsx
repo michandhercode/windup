@@ -12,6 +12,7 @@ import { useToast } from '@/components/Toast';
 import AlertModal from '@/components/AlertModal';
 import LetterCard from '@/components/LetterCard';
 import SealedOpenConfirm from '@/components/SealedOpenConfirm';
+import SealedReadyBanner from '@/components/SealedReadyBanner';
 import ViewLetterModal, { LetterModalAction } from '@/components/ViewLetterModal';
 import { formatLetterDate } from '@/lib/format';
 import { Box, Edit3, Trash2, AlertTriangle, Send, PenLine } from 'lucide-react';
@@ -141,8 +142,6 @@ export default function JarPage({ initialThoughts, isAuthenticated }: JarPagePro
     }
     setSelectedLetter(opened);
     setLetterToOpen(null);
-    // TODO: send the real email notification here (e.g. POST to an email API route)
-    // once an email backend is wired up.
   };
 
   const confirmRelease = (letter: Letter, e?: React.MouseEvent) => {
@@ -240,6 +239,9 @@ export default function JarPage({ initialThoughts, isAuthenticated }: JarPagePro
         </div>
       </div>
 
+      {/* Personal notice: sealed time capsules that are ready to open */}
+      <SealedReadyBanner letters={privateJarLetters} onOpen={(letter) => setLetterToOpen(letter)} />
+
       <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 items-start">
         
         {/* Sidebar - The Memory Shelf */}
@@ -312,6 +314,7 @@ export default function JarPage({ initialThoughts, isAuthenticated }: JarPagePro
                   letter={letter}
                   isLeaving={animatingLetterId === letter.id}
                   onClick={() => handleCardClick(letter)}
+                  onOpen={(l) => setLetterToOpen(l)}
                   onRelease={(l, e) => confirmRelease(l, e)}
                   onEdit={(l) => router.push(`/fold?draftId=${l.id}`)}
                   onDelete={(id, e) => confirmDelete(id, e)}
