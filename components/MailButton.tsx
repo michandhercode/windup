@@ -109,7 +109,7 @@ export default function MailButton() {
   };
 
   return (
-    <div className="relative" ref={rootRef}>
+    <div className="sm:relative" ref={rootRef}>
       <button
         type="button"
         onClick={toggle}
@@ -129,7 +129,7 @@ export default function MailButton() {
         <div
           role="dialog"
           aria-label="Time capsule mail"
-          className="absolute right-0 mt-2 w-72 max-w-[calc(100vw-2rem)] rounded-2xl bg-white dark:bg-slate-900 border border-rose-100 dark:border-slate-800 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150"
+          className="absolute left-4 right-4 top-full mt-2 sm:left-auto sm:right-0 sm:top-auto sm:w-72 rounded-2xl bg-white dark:bg-slate-900 border border-rose-100 dark:border-slate-800 shadow-xl z-50 animate-in fade-in zoom-in-95 duration-150"
         >
           <div className="px-4 py-2.5 border-b border-rose-50 dark:border-slate-800">
             <p className="text-xs font-bold text-slate-800 dark:text-slate-100">Mail</p>
